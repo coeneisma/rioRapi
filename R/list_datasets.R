@@ -1,7 +1,11 @@
 
-list_datasets <- function(){
+list_datasets <- function(as_table = TRUE){
 
-  ckanr::package_list(as = "table")
+  if(isTRUE(as_table)){
+    ckanr::package_list(as = "table")
+  } else
+
+    ckanr::package_list()
 
 
 }

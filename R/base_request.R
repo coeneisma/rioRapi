@@ -1,1 +1,3 @@
-ckanr::ckanr_setup("https://onderwijsdata.duo.nl/datasets/")
+# ckanr::ckanr_setup("https://onderwijsdata.duo.nl")
+
+
