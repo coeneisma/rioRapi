@@ -14,14 +14,21 @@ groups_data <- groups |>
 # JSON presentatie van dataset --------------------------------------------
 
 opleidingen <- req |>
-  req_url_path_append("package_show") |>
-  # req_method("POST") |>
+  req_url_path_append("datastore_search") |>
+  req_method("POST") |>
   req_headers("Accept" = "application/json") |>
-  # req_headers("resource_id" = "a7e3f323-6e46-4dca-a834-369d9d520aa8") |>
-  req_body_json(
-    list(
-      resource_id = "a7e3f323-6e46-4dca-a834-369d9d520aa8")
-    ) |>
-  req_dry_run()
+  req_body_json(list(
+    resource_id = "a7e3f323-6e46-4dca-a834-369d9d520aa8",
+    # limit = 10,
+    # q = "koudum",
+    q = list("PLAATSNAAM" = "Rotterdam")
+    # sort = "PLAATSNAAM"
+    # filters = list("PLAATSNAAM" = "Rotterdam")
+    )) |>  # resource_id en eventueel limit toevoegen
+  # req_url()
+  # req_dry_run()
   req_perform()
 
+opleidingen_data <- opleidingen |> resp_body_json(simplifyVector = TRUE)
+
+opleidingen_data$result$records |> View()
