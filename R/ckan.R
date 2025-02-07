@@ -1,4 +1,5 @@
 library(httr2)
+library(leaflet)
 
 req <- request("https://onderwijsdata.duo.nl/api/3/action")
 
