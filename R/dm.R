@@ -19,7 +19,7 @@ rio_package <- req |>
 #' die gebruikt kunnen worden om de relaties te definiëren
 
 
-inlezen_dataset <- function(id, limit = 10){
+inlezen_dataset <- function(id, limit = 0){
   req <- request("https://onderwijsdata.duo.nl/api/3/action")
 
   dataset <- req |>
@@ -32,6 +32,10 @@ inlezen_dataset <- function(id, limit = 10){
     )) |>
     req_perform() |>
     resp_body_json(simplifyVector = TRUE)
+
+  aantal_records <- dataset$result$total
+  runs <- ceiling(aantal_records / 1000)
+
 
   # dataset$results$records
   dataset
@@ -47,6 +51,7 @@ inlezen_alle_datasets <- function(rio_package_overzicht){
 
 }
 
+test_dataset <- inlezen_dataset(rio_package$result$id[1])
 
 datasets <- inlezen_alle_datasets(rio_package$result$resources)
 
