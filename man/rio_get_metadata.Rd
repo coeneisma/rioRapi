@@ -4,13 +4,7 @@
 \alias{rio_get_metadata}
 \title{Get metadata for the RIO dataset}
 \usage{
-rio_get_metadata(conn = NULL, package_id = "rio_nfo_po_vo_vavo_mbo_ho")
-}
-\arguments{
-\item{conn}{A connection object created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
-
-\item{package_id}{The ID of the RIO package. Default is "rio_nfo_po_vo_vavo_mbo_ho".}
+rio_get_metadata()
 }
 \value{
 A list containing the package metadata.
@@ -25,3 +19,4 @@ rio_metadata <- rio_get_metadata()
 }
 
 }
+\keyword{internal}

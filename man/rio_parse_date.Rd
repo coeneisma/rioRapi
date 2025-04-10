@@ -15,9 +15,4 @@ A Date object, or NA if the input is not a valid date.
 \description{
 This function converts dates from the RIO API format to R Date objects.
 }
-\examples{
-\dontrun{
-date <- rio_parse_date("2023-01-01")
-}
-
-}
+\keyword{internal}

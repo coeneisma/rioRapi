@@ -10,9 +10,8 @@
 #'
 #' @examples
 #' \dontrun{
-#' rio_conn <- rio_api_connection()
-#' locations <- rio_get_locations(rio_conn, city = "Rotterdam")
-#' institutions <- rio_fetch_data(rio_conn, resource_id = "institution-resource-id")
+#' locations <- rio_get_locations(city = "Rotterdam")
+#' institutions <- rio_get_data(dataset_id = "institution-resource-id")
 #'
 #' # Combine datasets
 #' combined_data <- rio_combine(
@@ -47,34 +46,26 @@ rio_combine <- function(..., by = NULL, suffix = c("_x", "_y")) {
 #'
 #' This function joins data from a RIO dataset based on a vector of IDs.
 #'
-#' @param conn A connection object created with \code{rio_api_connection()}.
-#'        If NULL, a new connection will be created.
 #' @param ids A vector of IDs to look up.
-#' @param resource_id The ID of the dataset resource to retrieve.
+#' @param dataset_id The ID of the dataset resource to retrieve.
 #' @param id_field The name of the ID field in the dataset.
 #' @param reference_date Optional date to filter valid records. Default is the current date.
 #'
 #' @return A tibble with data for the specified IDs.
 #'
-#' @examples
-#' \dontrun{
-#' # Get institution data for specified IDs
-#' institution_ids <- c("12345", "67890")
-#' institutions <- rio_lookup(
-#'   ids = institution_ids,
-#'   resource_id = "institution-resource-id",
-#'   id_field = "INSTELLINGSCODE"
-#' )
-#' }
-#'
-#' @export
-rio_lookup <- function(conn = NULL, ids, resource_id, id_field, reference_date = NULL) {
+#' @keywords internal
+rio_lookup <- function(ids, dataset_id, id_field, reference_date = NULL) {
+  # Create connection
+  conn <- rio_api_connection()
+
   # Fetch data by IDs
-  data <- rio_fetch_by_ids(
-    conn = conn,
-    resource_id = resource_id,
-    id_field = id_field,
-    id_values = ids
+  filters <- list()
+  filters[[id_field]] <- ids
+
+  data <- rio_get_data(
+    dataset_id = dataset_id,
+    quiet = TRUE,
+    filters = filters
   )
 
   # Apply date filtering if a reference date is provided
@@ -89,11 +80,9 @@ rio_lookup <- function(conn = NULL, ids, resource_id, id_field, reference_date =
 #'
 #' This function joins data from a RIO dataset based on IDs in a dataframe.
 #'
-#' @param conn A connection object created with \code{rio_api_connection()}.
-#'        If NULL, a new connection will be created.
 #' @param df A dataframe containing IDs to look up.
 #' @param id_col The name of the column in the dataframe containing IDs.
-#' @param resource_id The ID of the dataset resource to retrieve.
+#' @param dataset_id The ID of the dataset resource to retrieve.
 #' @param rio_id_field The name of the ID field in the RIO dataset. If NULL, uses id_col.
 #' @param reference_date Optional date to filter valid records. Default is the current date.
 #'
@@ -106,13 +95,13 @@ rio_lookup <- function(conn = NULL, ids, resource_id, id_field, reference_date =
 #' result <- rio_join(
 #'   df = df,
 #'   id_col = "inst_id",
-#'   resource_id = "institution-resource-id",
+#'   dataset_id = "institution-resource-id",
 #'   rio_id_field = "INSTELLINGSCODE"
 #' )
 #' }
 #'
 #' @export
-rio_join <- function(conn = NULL, df, id_col, resource_id, rio_id_field = NULL, reference_date = NULL) {
+rio_join <- function(df, id_col, dataset_id, rio_id_field = NULL, reference_date = NULL) {
   # If rio_id_field is not specified, use id_col
   if (is.null(rio_id_field)) {
     rio_id_field <- id_col
@@ -121,11 +110,10 @@ rio_join <- function(conn = NULL, df, id_col, resource_id, rio_id_field = NULL, 
   # Extract unique IDs from the dataframe
   ids <- unique(df[[id_col]])
 
-  # Look up the data
+  # Look up the data using rio_lookup (internal function)
   rio_data <- rio_lookup(
-    conn = conn,
     ids = ids,
-    resource_id = resource_id,
+    dataset_id = dataset_id,
     id_field = rio_id_field,
     reference_date = reference_date
   )

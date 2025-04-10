@@ -27,13 +27,4 @@ A tibble containing only records that are valid at the reference date.
 This function filters data from the RIO API based on a reference date,
 considering start and end dates of records.
 }
-\examples{
-\dontrun{
-# Filter data for records valid on January 1, 2023
-filtered_data <- rio_filter_by_date(
-  data,
-  reference_date = as.Date("2023-01-01")
-)
-}
-
-}
+\keyword{internal}

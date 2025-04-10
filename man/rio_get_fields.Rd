@@ -4,36 +4,25 @@
 \alias{rio_get_fields}
 \title{Get information about fields in a dataset}
 \usage{
-rio_get_fields(
-  conn = NULL,
-  resource_id = NULL,
-  resource_name = NULL,
-  package_id = "rio_nfo_po_vo_vavo_mbo_ho"
-)
+rio_get_fields(dataset_id = NULL, dataset_name = NULL)
 }
 \arguments{
-\item{conn}{A connection object created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
+\item{dataset_id}{The ID of the dataset resource. Default is NULL.}
 
-\item{resource_id}{The ID of the dataset resource. Default is NULL.}
-
-\item{resource_name}{The name of the dataset resource. Default is NULL.
-Either resource_id or resource_name must be provided.}
-
-\item{package_id}{The ID of the package to search in when using resource_name.
-Default is "rio_nfo_po_vo_vavo_mbo_ho".}
+\item{dataset_name}{The name of the dataset resource. Default is NULL.
+Either dataset_id or dataset_name must be provided.}
 }
 \value{
 A tibble with information about the fields in the dataset.
 }
 \description{
 This function retrieves information about the available fields (columns) in a dataset,
-which can be used for filtering in the rio_fetch_data function.
+which can be used for filtering in the rio_get_data function.
 }
 \examples{
 \dontrun{
 # Get fields for the "Onderwijslocaties" dataset
-fields <- rio_get_fields(resource_name = "Onderwijslocaties")
+fields <- rio_get_fields(dataset_name = "Onderwijslocaties")
 
 # Print the field names that can be used for filtering
 print(fields$id)
