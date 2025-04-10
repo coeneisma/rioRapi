@@ -4,10 +4,7 @@
 \alias{rio_api_check}
 \title{Check API availability}
 \usage{
-rio_api_check(req)
-}
-\arguments{
-\item{req}{A request object, typically created with \code{rio_api_connection()}.}
+rio_api_check()
 }
 \value{
 TRUE if the API is available, FALSE otherwise.
@@ -17,8 +14,8 @@ This function checks if the RIO CKAN API is available and responsive.
 }
 \examples{
 \dontrun{
-rio_conn <- rio_api_connection()
-is_available <- rio_api_check(rio_conn)
+is_available <- rio_api_check()
 }
 
 }
+\keyword{internal}

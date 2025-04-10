@@ -4,19 +4,9 @@
 \alias{rio_join}
 \title{Join RIO datasets with dataframe lookup}
 \usage{
-rio_join(
-  conn = NULL,
-  df,
-  id_col,
-  resource_id,
-  rio_id_field = NULL,
-  reference_date = NULL
-)
+rio_join(df, id_col, resource_id, rio_id_field = NULL, reference_date = NULL)
 }
 \arguments{
-\item{conn}{A connection object created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
-
 \item{df}{A dataframe containing IDs to look up.}
 
 \item{id_col}{The name of the column in the dataframe containing IDs.}

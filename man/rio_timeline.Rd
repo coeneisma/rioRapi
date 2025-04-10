@@ -31,7 +31,7 @@ This function creates a timeline plot showing the validity periods of institutio
 }
 \examples{
 \dontrun{
-institutions <- rio_fetch_data(resource_id = "institution-resource-id")
+institutions <- rio_get_data(resource_id = "institution-resource-id")
 plot <- rio_timeline(
   institutions,
   id_col = "INSTELLINGSCODE",

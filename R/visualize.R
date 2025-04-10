@@ -99,7 +99,7 @@ rio_map_locations <- function(locations, popup_vars = NULL, color = "blue", radi
 #'
 #' @examples
 #' \dontrun{
-#' institutions <- rio_fetch_data(resource_id = "institution-resource-id")
+#' institutions <- rio_get_data(resource_id = "institution-resource-id")
 #' plot <- rio_timeline(
 #'   institutions,
 #'   id_col = "INSTELLINGSCODE",

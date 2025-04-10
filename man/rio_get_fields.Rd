@@ -4,31 +4,20 @@
 \alias{rio_get_fields}
 \title{Get information about fields in a dataset}
 \usage{
-rio_get_fields(
-  conn = NULL,
-  resource_id = NULL,
-  resource_name = NULL,
-  package_id = "rio_nfo_po_vo_vavo_mbo_ho"
-)
+rio_get_fields(resource_id = NULL, resource_name = NULL)
 }
 \arguments{
-\item{conn}{A connection object created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
-
 \item{resource_id}{The ID of the dataset resource. Default is NULL.}
 
 \item{resource_name}{The name of the dataset resource. Default is NULL.
 Either resource_id or resource_name must be provided.}
-
-\item{package_id}{The ID of the package to search in when using resource_name.
-Default is "rio_nfo_po_vo_vavo_mbo_ho".}
 }
 \value{
 A tibble with information about the fields in the dataset.
 }
 \description{
 This function retrieves information about the available fields (columns) in a dataset,
-which can be used for filtering in the rio_fetch_data function.
+which can be used for filtering in the rio_get_data function.
 }
 \examples{
 \dontrun{

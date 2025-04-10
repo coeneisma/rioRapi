@@ -4,13 +4,7 @@
 \alias{rio_list_datasets}
 \title{List available datasets in the RIO package}
 \usage{
-rio_list_datasets(conn = NULL, package_id = "rio_nfo_po_vo_vavo_mbo_ho")
-}
-\arguments{
-\item{conn}{A connection object created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
-
-\item{package_id}{The ID of the package to retrieve datasets from. Default is "rio_nfo_po_vo_vavo_mbo_ho".}
+rio_list_datasets()
 }
 \value{
 A tibble with information about each dataset, including ID, name, and description.

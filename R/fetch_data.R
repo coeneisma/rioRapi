@@ -5,16 +5,12 @@
 #' Additional filter parameters can be provided to filter the data.
 #' By default, this function retrieves all available records (not just the first 1000).
 #'
-#' @param conn A connection object created with \code{rio_api_connection()}.
-#'        If NULL, a new connection will be created.
 #' @param resource_id The ID of the dataset resource to retrieve. Default is NULL.
 #' @param resource_name The name of the dataset resource to retrieve. Default is NULL.
 #'        Either resource_id or resource_name must be provided.
 #' @param limit Maximum number of records to return. Default is NULL (all records).
 #'        Specify a number to limit the results.
 #' @param query A search query string for full-text search. Default is NULL.
-#' @param package_id The ID of the package to search in when using resource_name.
-#'        Default is "rio_nfo_po_vo_vavo_mbo_ho".
 #' @param all_records Logical indicating whether to fetch all records (which may
 #'        require multiple API calls). Default is TRUE.
 #' @param batch_size Number of records to retrieve per API call. Default is 1000,
@@ -28,25 +24,25 @@
 #' @examples
 #' \dontrun{
 #' # Get all educational locations in Rotterdam
-#' locations <- rio_fetch_data(
+#' locations <- rio_get_data(
 #'   resource_name = "Onderwijslocaties",
 #'   PLAATSNAAM = "Rotterdam"
 #' )
 #'
 #' # Get only the first 500 records
-#' limited_data <- rio_fetch_data(
+#' limited_data <- rio_get_data(
 #'   resource_name = "Onderwijslocaties",
 #'   limit = 500
 #' )
 #'
 #' # Get the first 1000 records without attempting to fetch all records
-#' first_batch <- rio_fetch_data(
+#' first_batch <- rio_get_data(
 #'   resource_name = "Onderwijslocaties",
 #'   all_records = FALSE
 #' )
 #'
 #' # Fetch data without showing progress bar
-#' silent_fetch <- rio_fetch_data(
+#' silent_fetch <- rio_get_data(
 #'   resource_name = "Onderwijslocaties",
 #'   quiet = TRUE
 #' )
@@ -54,12 +50,14 @@
 #'
 #' @importFrom cli cli_alert_info cli_progress_bar cli_progress_update cli_progress_done
 #' @export
-rio_fetch_data <- function(conn = NULL, resource_id = NULL, resource_name = NULL,
-                           limit = NULL, query = NULL,
-                           package_id = "rio_nfo_po_vo_vavo_mbo_ho",
-                           all_records = TRUE, batch_size = 1000,
-                           quiet = FALSE,
-                           ...) {
+rio_get_data <- function(resource_id = NULL, resource_name = NULL,
+                         limit = NULL, query = NULL,
+                         all_records = TRUE, batch_size = 1000,
+                         quiet = FALSE,
+                         ...) {
+  # Create connection
+  conn <- rio_api_connection()
+
   # Check that either resource_id or resource_name is provided
   if (is.null(resource_id) && is.null(resource_name)) {
     stop("Either resource_id or resource_name must be provided")
@@ -68,7 +66,7 @@ rio_fetch_data <- function(conn = NULL, resource_id = NULL, resource_name = NULL
   # If resource_name is provided and resource_id is not, look up the ID
   if (is.null(resource_id) && !is.null(resource_name)) {
     dataset_name <- resource_name  # Store for later use in messages
-    resource_id <- get_resource_id_from_name(conn, resource_name, package_id)
+    resource_id <- get_resource_id_from_name(conn, resource_name, "rio_nfo_po_vo_vavo_mbo_ho")
     if (is.null(resource_id)) {
       return(tibble::tibble())
     }
@@ -267,18 +265,16 @@ rio_fetch_data <- function(conn = NULL, resource_id = NULL, resource_name = NULL
 #' Get educational locations
 #'
 #' This function retrieves educational locations from the RIO API.
-#' It's a convenient wrapper around rio_fetch_data for the "Onderwijslocaties" dataset.
+#' It's a convenient wrapper around rio_get_data for the "Onderwijslocaties" dataset.
 #' By default, it returns a simple tibble, but it can also convert the data to an sf object
 #' for spatial analysis and mapping.
 #'
-#' @param conn A connection object created with \code{rio_api_connection()}.
-#'        If NULL, a new connection will be created.
 #' @param city Optional city name(s) to filter locations. Default is NULL.
 #' @param limit Maximum number of records to return. Default is NULL.
 #' @param as_sf Logical indicating whether to return the result as an sf object. Default is FALSE.
 #' @param remove_invalid Logical indicating whether to remove rows with invalid or missing coordinates. Default is FALSE
 #' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#' @param ... Additional filter parameters to pass to rio_fetch_data.
+#' @param ... Additional filter parameters to pass to rio_get_data.
 #'
 #' @return A tibble containing educational location data, or an sf object if as_sf = TRUE.
 #'
@@ -300,12 +296,11 @@ rio_fetch_data <- function(conn = NULL, resource_id = NULL, resource_name = NULL
 #'
 #' @importFrom sf st_as_sf
 #' @export
-rio_get_locations <- function(conn = NULL, city = NULL, limit = NULL,
+rio_get_locations <- function(city = NULL, limit = NULL,
                               as_sf = FALSE, remove_invalid = FALSE,
                               quiet = FALSE, ...) {
-  # Build parameters for rio_fetch_data
+  # Build parameters for rio_get_data
   params <- list(
-    conn = conn,
     resource_name = "onderwijslocaties",
     limit = limit,
     quiet = quiet,
@@ -317,8 +312,8 @@ rio_get_locations <- function(conn = NULL, city = NULL, limit = NULL,
     params$PLAATSNAAM <- city
   }
 
-  # Call rio_fetch_data with the parameters
-  locations <- do.call(rio_fetch_data, params)
+  # Call rio_get_data with the parameters
+  locations <- do.call(rio_get_data, params)
 
   # If no data or not converting to sf, return as is
   if (nrow(locations) == 0 || !as_sf) {

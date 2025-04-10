@@ -4,12 +4,9 @@
 \alias{rio_lookup}
 \title{Join RIO datasets with vector lookup}
 \usage{
-rio_lookup(conn = NULL, ids, resource_id, id_field, reference_date = NULL)
+rio_lookup(ids, resource_id, id_field, reference_date = NULL)
 }
 \arguments{
-\item{conn}{A connection object created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
-
 \item{ids}{A vector of IDs to look up.}
 
 \item{resource_id}{The ID of the dataset resource to retrieve.}
@@ -24,15 +21,4 @@ A tibble with data for the specified IDs.
 \description{
 This function joins data from a RIO dataset based on a vector of IDs.
 }
-\examples{
-\dontrun{
-# Get institution data for specified IDs
-institution_ids <- c("12345", "67890")
-institutions <- rio_lookup(
-  ids = institution_ids,
-  resource_id = "institution-resource-id",
-  id_field = "INSTELLINGSCODE"
-)
-}
-
-}
+\keyword{internal}

@@ -1,9 +1,7 @@
 Version: 1.0
-ProjectId: acbb4db7-51ec-4ee6-9d45-dcbffd99f199
 
 RestoreWorkspace: No
 SaveWorkspace: No
-
 AlwaysSaveHistory: Default
 
 EnableCodeIndexing: Yes
@@ -22,4 +20,3 @@ BuildType: Package
 PackageUseDevtools: Yes
 PackageInstallArgs: --no-multiarch --with-keep.source
 PackageRoxygenize: rd,collate,namespace
-
