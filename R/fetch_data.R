@@ -1,56 +1,25 @@
-#' Fetch data from a RIO dataset
+#' Fetch data from a RIO dataset with date filtering
 #'
-#' This function retrieves data from a specific dataset in the RIO CKAN API.
-#' You can specify either a dataset_id or a dataset_name to identify the dataset.
-#' Additional filter parameters can be provided to filter the data.
-#' By default, this function retrieves all available records (not just the first 1000).
+#' This function retrieves data from a RIO dataset, optionally filtering by a reference date
+#' to get only records valid at that date.
 #'
 #' @param dataset_id The ID of the dataset resource to retrieve. Default is NULL.
 #' @param dataset_name The name of the dataset resource to retrieve. Default is NULL.
 #'        Either dataset_id or dataset_name must be provided.
+#' @param reference_date Optional date to filter valid records. If provided, only records
+#'        valid on this date will be returned. Default is NULL (no date filtering).
 #' @param limit Maximum number of records to return. Default is NULL (all records).
-#'        Specify a number to limit the results.
 #' @param query A search query string for full-text search. Default is NULL.
-#' @param all_records Logical indicating whether to fetch all records (which may
-#'        require multiple API calls). Default is TRUE.
-#' @param batch_size Number of records to retrieve per API call. Default is 1000,
-#'        which is the maximum supported by the API.
+#' @param all_records Logical indicating whether to fetch all records. Default is TRUE.
+#' @param batch_size Number of records to retrieve per API call. Default is 1000.
 #' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#' @param ... Additional named parameters used as filters. For example, PLAATSNAAM = "Rotterdam"
-#'        will filter for records where the PLAATSNAAM field equals "Rotterdam".
+#' @param ... Additional named parameters used as filters.
 #'
 #' @return A tibble containing the retrieved data.
 #'
-#' @examples
-#' \dontrun{
-#' # Get all educational locations in Rotterdam
-#' locations <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   PLAATSNAAM = "Rotterdam"
-#' )
-#'
-#' # Get only the first 500 records
-#' limited_data <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   limit = 500
-#' )
-#'
-#' # Get the first 1000 records without attempting to fetch all records
-#' first_batch <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   all_records = FALSE
-#' )
-#'
-#' # Fetch data without showing progress bar
-#' silent_fetch <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   quiet = TRUE
-#' )
-#' }
-#'
-#' @importFrom cli cli_alert_info cli_progress_bar cli_progress_update cli_progress_done
 #' @export
 rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
+                         reference_date = NULL,
                          limit = NULL, query = NULL,
                          all_records = TRUE, batch_size = 1000,
                          quiet = FALSE,
@@ -261,6 +230,16 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
       cli::cli_alert_success("Retrieved {nrow(result)} records in {round(elapsed_time, 1)} seconds ({round(speed, 1)} records/sec)")
     }
 
+    # Apply reference date filtering if specified
+    if (!is.null(reference_date)) {
+      if (!quiet) {
+        cli::cli_alert_info("Filtering data for reference date: {reference_date}")
+      }
+
+      # Apply client-side filtering
+      result <- rio_filter_by_reference_date(result, reference_date)
+    }
+
     return(result)
   }
 }
@@ -380,4 +359,126 @@ rio_get_locations <- function(city = NULL, limit = NULL,
     }
     return(locations)
   })
+}
+
+#' Filter data based on a reference date
+#'
+#' This function filters temporal data based on a reference date,
+#' keeping only records that are valid at the specified date.
+#' It prioritizes columns ending with "_PERIODE" for date filtering.
+#'
+#' @param data A tibble containing temporal data with date columns.
+#' @param reference_date The date for which records should be valid (as Date object).
+#' @param start_date_col The name of the column containing start dates.
+#'        Default is NULL, which means the function will automatically search for
+#'        appropriate columns, prioritizing those ending with "_PERIODE".
+#' @param end_date_col The name of the column containing end dates.
+#'        Default is NULL, which means the function will automatically search for
+#'        appropriate columns, prioritizing those ending with "_PERIODE".
+#'
+#' @return A filtered tibble containing only records that are valid at the reference date.
+#'
+#' @examples
+#' \dontrun{
+#' # Get educational institutions valid on January 1, 2023
+#' institutions <- rio_get_data(dataset_name = "onderwijsaanbieders")
+#' current_institutions <- rio_filter_by_reference_date(institutions, as.Date("2023-01-01"))
+#'
+#' # With custom column names
+#' custom_data <- rio_get_data(dataset_name = "custom_dataset")
+#' filtered_data <- rio_filter_by_reference_date(custom_data, as.Date("2023-01-01"),
+#'                                               start_date_col = "STARTDATUM",
+#'                                               end_date_col = "UITBEDRIJFDATUM")
+#' }
+#'
+#' @keywords internal
+rio_filter_by_reference_date <- function(data, reference_date,
+                                         start_date_col = NULL,
+                                         end_date_col = NULL) {
+  # Ensure reference_date is a Date object
+  if (!inherits(reference_date, "Date")) {
+    reference_date <- as.Date(reference_date)
+  }
+
+  # Check available columns in the data
+  column_names <- names(data)
+
+  # If start_date_col is not provided, try to find the most appropriate one
+  if (is.null(start_date_col)) {
+    # First priority: columns ending with "_PERIODE"
+    period_start_cols <- grep("_PERIODE$", column_names, value = TRUE)
+    period_start_cols <- period_start_cols[grepl("^BEGIN|^START", period_start_cols)]
+
+    # Second priority: other common start date columns
+    other_start_cols <- c("BEGINDATUM", "STARTDATUM", "INGANGSDATUM", "INBEDRIJFDATUM")
+
+    # Combine and find first match
+    if (length(period_start_cols) > 0) {
+      start_column <- period_start_cols[1]
+    } else if (any(other_start_cols %in% column_names)) {
+      start_column <- other_start_cols[other_start_cols %in% column_names][1]
+    } else {
+      stop("No suitable start date column found in the data")
+    }
+  } else {
+    if (!(start_date_col %in% column_names)) {
+      stop("Specified start date column '", start_date_col, "' not found in data")
+    }
+    start_column <- start_date_col
+  }
+
+  # If end_date_col is not provided, try to find the most appropriate one
+  if (is.null(end_date_col)) {
+    # First priority: columns ending with "_PERIODE"
+    period_end_cols <- grep("_PERIODE$", column_names, value = TRUE)
+    period_end_cols <- period_end_cols[grepl("^EIND", period_end_cols)]
+
+    # Second priority: other common end date columns
+    other_end_cols <- c("EINDDATUM", "OPHEFFINGSDATUM", "UITBEDRIJFDATUM")
+
+    # Combine and find first match
+    if (length(period_end_cols) > 0) {
+      end_column <- period_end_cols[1]
+    } else if (any(other_end_cols %in% column_names)) {
+      end_column <- other_end_cols[other_end_cols %in% column_names][1]
+    } else {
+      end_column <- NULL
+      message("No end date column found. Only checking start date.")
+    }
+  } else {
+    if (!(end_date_col %in% column_names)) {
+      warning("Specified end date column '", end_date_col, "' not found in data")
+      end_column <- NULL
+    } else {
+      end_column <- end_date_col
+    }
+  }
+
+  # Report which columns are being used
+  message("Filtering using start date column: '", start_column, "'")
+  if (!is.null(end_column)) {
+    message("Filtering using end date column: '", end_column, "'")
+  }
+
+  # Ensure date columns are Date objects
+  if (!inherits(data[[start_column]], "Date")) {
+    data[[start_column]] <- purrr::map_vec(data[[start_column]], rio_parse_date)
+  }
+
+  if (!is.null(end_column) && !inherits(data[[end_column]], "Date")) {
+    data[[end_column]] <- purrr::map_vec(data[[end_column]], rio_parse_date)
+  }
+
+  # Filter data: record is valid if:
+  # 1. Start date is less than or equal to reference_date (or NA)
+  # 2. End date is greater than reference_date OR end date is NA (still valid)
+  filtered_data <- data |>
+    dplyr::filter(is.na(.data[[start_column]]) | .data[[start_column]] <= reference_date)
+
+  if (!is.null(end_column)) {
+    filtered_data <- filtered_data |>
+      dplyr::filter(is.na(.data[[end_column]]) | .data[[end_column]] > reference_date)
+  }
+
+  return(filtered_data)
 }
