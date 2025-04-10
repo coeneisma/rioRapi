@@ -76,18 +76,18 @@ rio_api_call <- function(req = NULL, endpoint, method = "GET", body = NULL, simp
 #'
 #' This function checks if the RIO CKAN API is available and responsive.
 #'
-#' @param req A request object, typically created with \code{rio_api_connection()}.
-#'
 #' @return TRUE if the API is available, FALSE otherwise.
 #'
 #' @examples
 #' \dontrun{
-#' rio_conn <- rio_api_connection()
-#' is_available <- rio_api_check(rio_conn)
+#' is_available <- rio_api_check()
 #' }
 #'
-#' @export
-rio_api_check <- function(req) {
+#' @keywords internal
+rio_api_check <- function() {
+  # Create a connection
+  req <- rio_api_connection()
+
   tryCatch({
     test_response <- req |>
       httr2::req_url_path_append("site_read") |>
@@ -101,92 +101,28 @@ rio_api_check <- function(req) {
   })
 }
 
-#' Get detailed information about a specific dataset
-#'
-#' This function retrieves detailed information about a specific dataset (resource) in the RIO package.
-#'
-#' @param conn A connection object created with \code{rio_api_connection()}.
-#'        If NULL, a new connection will be created.
-#' @param resource_id The ID of the resource to retrieve. Default is NULL.
-#' @param resource_name The name of the dataset resource to retrieve. Default is NULL.
-#'        Either resource_id or resource_name must be provided.
-#' @param package_id The ID of the package to search in when using resource_name.
-#'        Default is "rio_nfo_po_vo_vavo_mbo_ho".
-#'
-#' @return A list containing detailed information about the dataset.
-#'
-#' @examples
-#' \dontrun{
-#' # Get resource info using ID
-#' resource_info_by_id <- rio_get_resource_info(resource_id = "a7e3f323-6e46-4dca-a834-369d9d520aa8")
-#'
-#' # Get resource info using name
-#' resource_info_by_name <- rio_get_resource_info(resource_name = "Onderwijslocaties")
-#' }
-#'
-#' @export
-rio_get_resource_info <- function(conn = NULL, resource_id = NULL, resource_name = NULL,
-                                 package_id = "rio_nfo_po_vo_vavo_mbo_ho") {
-  # Check that either resource_id or resource_name is provided
-  if (is.null(resource_id) && is.null(resource_name)) {
-    stop("Either resource_id or resource_name must be provided")
-  }
-
-  # If resource_name is provided and resource_id is not, look up the ID
-  if (is.null(resource_id) && !is.null(resource_name)) {
-    # First get list of datasets
-    datasets <- rio_list_datasets(conn, package_id)
-
-    # Find dataset with matching name
-    match_idx <- which(datasets$name == resource_name)
-
-    # Return ID if found, otherwise NULL
-    if (length(match_idx) > 0) {
-      resource_id <- datasets$id[match_idx[1]]
-    } else {
-      warning("Dataset with name '", resource_name, "' not found")
-      return(list())
-    }
-  }
-
-  # Execute API call to get resource information
-  response <- rio_api_call(
-    conn,
-    "resource_show",
-    method = "POST",
-    body = list(id = resource_id)
-  )
-
-  if (!is.null(response$result)) {
-    return(response$result)
-  } else {
-    warning("Resource information not found for the specified dataset")
-    return(list())
-  }
-}
-
 
 #' Helper function to get resource ID from name
 #'
 #' @param conn Connection object
-#' @param resource_name Resource name
+#' @param dataset_name Resource name
 #' @param package_id Package ID
 #'
 #' @return Resource ID or NULL if not found
 #'
 #' @keywords internal
-get_resource_id_from_name <- function(conn = NULL, resource_name, package_id = "rio_nfo_po_vo_vavo_mbo_ho") {
+get_dataset_id_from_name <- function(conn = NULL, dataset_name, package_id = "rio_nfo_po_vo_vavo_mbo_ho") {
   # Get list of datasets
   datasets <- rio_list_datasets(conn, package_id)
 
   # Find dataset with matching name
-  match_idx <- which(datasets$name == resource_name)
+  match_idx <- which(datasets$name == dataset_name)
 
   # Return ID if found, otherwise NULL
   if (length(match_idx) > 0) {
     return(datasets$id[match_idx[1]])
   } else {
-    warning("Dataset with name '", resource_name, "' not found")
+    warning("Dataset with name '", dataset_name, "' not found")
     return(NULL)
   }
 }

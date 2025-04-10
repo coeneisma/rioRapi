@@ -5,7 +5,6 @@
 \title{Get educational locations}
 \usage{
 rio_get_locations(
-  conn = NULL,
   city = NULL,
   limit = NULL,
   as_sf = FALSE,
@@ -15,9 +14,6 @@ rio_get_locations(
 )
 }
 \arguments{
-\item{conn}{A connection object created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
-
 \item{city}{Optional city name(s) to filter locations. Default is NULL.}
 
 \item{limit}{Maximum number of records to return. Default is NULL.}
@@ -28,14 +24,14 @@ If NULL, a new connection will be created.}
 
 \item{quiet}{Logical indicating whether to suppress progress messages. Default is FALSE.}
 
-\item{...}{Additional filter parameters to pass to rio_fetch_data.}
+\item{...}{Additional filter parameters to pass to rio_get_data.}
 }
 \value{
 A tibble containing educational location data, or an sf object if as_sf = TRUE.
 }
 \description{
 This function retrieves educational locations from the RIO API.
-It's a convenient wrapper around rio_fetch_data for the "Onderwijslocaties" dataset.
+It's a convenient wrapper around rio_get_data for the "Onderwijslocaties" dataset.
 By default, it returns a simple tibble, but it can also convert the data to an sf object
 for spatial analysis and mapping.
 }
