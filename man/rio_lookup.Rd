@@ -4,12 +4,12 @@
 \alias{rio_lookup}
 \title{Join RIO datasets with vector lookup}
 \usage{
-rio_lookup(ids, resource_id, id_field, reference_date = NULL)
+rio_lookup(ids, dataset_id, id_field, reference_date = NULL)
 }
 \arguments{
 \item{ids}{A vector of IDs to look up.}
 
-\item{resource_id}{The ID of the dataset resource to retrieve.}
+\item{dataset_id}{The ID of the dataset resource to retrieve.}
 
 \item{id_field}{The name of the ID field in the dataset.}
 

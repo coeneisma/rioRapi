@@ -1,13 +1,13 @@
 #' Fetch data from a RIO dataset
 #'
 #' This function retrieves data from a specific dataset in the RIO CKAN API.
-#' You can specify either a resource_id or a resource_name to identify the dataset.
+#' You can specify either a dataset_id or a dataset_name to identify the dataset.
 #' Additional filter parameters can be provided to filter the data.
 #' By default, this function retrieves all available records (not just the first 1000).
 #'
-#' @param resource_id The ID of the dataset resource to retrieve. Default is NULL.
-#' @param resource_name The name of the dataset resource to retrieve. Default is NULL.
-#'        Either resource_id or resource_name must be provided.
+#' @param dataset_id The ID of the dataset resource to retrieve. Default is NULL.
+#' @param dataset_name The name of the dataset resource to retrieve. Default is NULL.
+#'        Either dataset_id or dataset_name must be provided.
 #' @param limit Maximum number of records to return. Default is NULL (all records).
 #'        Specify a number to limit the results.
 #' @param query A search query string for full-text search. Default is NULL.
@@ -25,32 +25,32 @@
 #' \dontrun{
 #' # Get all educational locations in Rotterdam
 #' locations <- rio_get_data(
-#'   resource_name = "Onderwijslocaties",
+#'   dataset_name = "Onderwijslocaties",
 #'   PLAATSNAAM = "Rotterdam"
 #' )
 #'
 #' # Get only the first 500 records
 #' limited_data <- rio_get_data(
-#'   resource_name = "Onderwijslocaties",
+#'   dataset_name = "Onderwijslocaties",
 #'   limit = 500
 #' )
 #'
 #' # Get the first 1000 records without attempting to fetch all records
 #' first_batch <- rio_get_data(
-#'   resource_name = "Onderwijslocaties",
+#'   dataset_name = "Onderwijslocaties",
 #'   all_records = FALSE
 #' )
 #'
 #' # Fetch data without showing progress bar
 #' silent_fetch <- rio_get_data(
-#'   resource_name = "Onderwijslocaties",
+#'   dataset_name = "Onderwijslocaties",
 #'   quiet = TRUE
 #' )
 #' }
 #'
 #' @importFrom cli cli_alert_info cli_progress_bar cli_progress_update cli_progress_done
 #' @export
-rio_get_data <- function(resource_id = NULL, resource_name = NULL,
+rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
                          limit = NULL, query = NULL,
                          all_records = TRUE, batch_size = 1000,
                          quiet = FALSE,
@@ -58,20 +58,20 @@ rio_get_data <- function(resource_id = NULL, resource_name = NULL,
   # Create connection
   conn <- rio_api_connection()
 
-  # Check that either resource_id or resource_name is provided
-  if (is.null(resource_id) && is.null(resource_name)) {
-    stop("Either resource_id or resource_name must be provided")
+  # Check that either dataset_id or dataset_name is provided
+  if (is.null(dataset_id) && is.null(dataset_name)) {
+    stop("Either dataset_id or dataset_name must be provided")
   }
 
-  # If resource_name is provided and resource_id is not, look up the ID
-  if (is.null(resource_id) && !is.null(resource_name)) {
-    dataset_name <- resource_name  # Store for later use in messages
-    resource_id <- get_resource_id_from_name(conn, resource_name, "rio_nfo_po_vo_vavo_mbo_ho")
-    if (is.null(resource_id)) {
+  # If dataset_name is provided and dataset_id is not, look up the ID
+  if (is.null(dataset_id) && !is.null(dataset_name)) {
+    dataset_name <- dataset_name  # Store for later use in messages
+    dataset_id <- get_dataset_id_from_name(conn, dataset_name, "rio_nfo_po_vo_vavo_mbo_ho")
+    if (is.null(dataset_id)) {
       return(tibble::tibble())
     }
   } else {
-    dataset_name <- resource_id  # Use ID for messages if name isn't provided
+    dataset_name <- dataset_id  # Use ID for messages if name isn't provided
   }
 
   # Process additional filter parameters
@@ -87,7 +87,7 @@ rio_get_data <- function(resource_id = NULL, resource_name = NULL,
   # If limit is set or all_records is FALSE, we'll just make a single API call
   if (!is.null(limit) || !all_records) {
     # Build request body
-    body <- list(resource_id = resource_id)
+    body <- list(dataset_id = dataset_id)
 
     if (!is.null(limit)) {
       body$limit <- limit
@@ -135,7 +135,7 @@ rio_get_data <- function(resource_id = NULL, resource_name = NULL,
     # We're fetching all records, so we need to make multiple API calls
 
     # First, get the total number of records
-    resource_info <- rio_get_resource_info(conn, resource_id = resource_id)
+    resource_info <- rio_get_resource_info(conn, dataset_id = dataset_id)
 
     # Check if we have the preview_rows information
     total_records <- NULL
@@ -154,7 +154,7 @@ rio_get_data <- function(resource_id = NULL, resource_name = NULL,
         "datastore_search",
         method = "POST",
         body = list(
-          resource_id = resource_id,
+          dataset_id = dataset_id,
           limit = 0,
           q = query,
           filters = filters
@@ -189,7 +189,7 @@ rio_get_data <- function(resource_id = NULL, resource_name = NULL,
     while (records_fetched < total_records) {
       # Create query for current batch
       body <- list(
-        resource_id = resource_id,
+        dataset_id = dataset_id,
         limit = batch_size,
         offset = records_fetched
       )
@@ -301,7 +301,7 @@ rio_get_locations <- function(city = NULL, limit = NULL,
                               quiet = FALSE, ...) {
   # Build parameters for rio_get_data
   params <- list(
-    resource_name = "onderwijslocaties",
+    dataset_name = "onderwijslocaties",
     limit = limit,
     quiet = quiet,
     ...

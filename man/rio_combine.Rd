@@ -22,7 +22,7 @@ This function combines multiple RIO datasets based on a common ID field.
 \examples{
 \dontrun{
 locations <- rio_get_locations(city = "Rotterdam")
-institutions <- rio_get_data(resource_id = "institution-resource-id")
+institutions <- rio_get_data(dataset_id = "institution-resource-id")
 
 # Combine datasets
 combined_data <- rio_combine(

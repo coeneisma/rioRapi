@@ -78,29 +78,29 @@ rio_list_datasets <- function() {
 #'
 #' This function retrieves detailed information about a specific dataset (resource) in the RIO package.
 #'
-#' @param resource_id The ID of the resource to retrieve. Default is NULL.
-#' @param resource_name The name of the dataset resource to retrieve. Default is NULL.
-#'        Either resource_id or resource_name must be provided.
+#' @param dataset_id The ID of the resource to retrieve. Default is NULL.
+#' @param dataset_name The name of the dataset resource to retrieve. Default is NULL.
+#'        Either dataset_id or dataset_name must be provided.
 #'
 #' @return A list containing detailed information about the dataset.
 #'
 #' @keywords internal
-rio_get_resource_info <- function(resource_id = NULL, resource_name = NULL) {
+rio_get_resource_info <- function(dataset_id = NULL, dataset_name = NULL) {
   # Create connection
   conn <- rio_api_connection()
 
   # Define package_id
   package_id <- "rio_nfo_po_vo_vavo_mbo_ho"
 
-  # Check that either resource_id or resource_name is provided
-  if (is.null(resource_id) && is.null(resource_name)) {
-    stop("Either resource_id or resource_name must be provided")
+  # Check that either dataset_id or dataset_name is provided
+  if (is.null(dataset_id) && is.null(dataset_name)) {
+    stop("Either dataset_id or dataset_name must be provided")
   }
 
-  # If resource_name is provided and resource_id is not, look up the ID
-  if (is.null(resource_id) && !is.null(resource_name)) {
-    resource_id <- get_resource_id_from_name(conn, resource_name, package_id)
-    if (is.null(resource_id)) {
+  # If dataset_name is provided and dataset_id is not, look up the ID
+  if (is.null(dataset_id) && !is.null(dataset_name)) {
+    dataset_id <- get_dataset_id_from_name(conn, dataset_name, package_id)
+    if (is.null(dataset_id)) {
       return(list())
     }
   }
@@ -110,7 +110,7 @@ rio_get_resource_info <- function(resource_id = NULL, resource_name = NULL) {
     conn,
     "resource_show",
     method = "POST",
-    body = list(id = resource_id)
+    body = list(id = dataset_id)
   )
 
   if (!is.null(response$result)) {
@@ -126,38 +126,38 @@ rio_get_resource_info <- function(resource_id = NULL, resource_name = NULL) {
 #' This function retrieves information about the available fields (columns) in a dataset,
 #' which can be used for filtering in the rio_get_data function.
 #'
-#' @param resource_id The ID of the dataset resource. Default is NULL.
-#' @param resource_name The name of the dataset resource. Default is NULL.
-#'        Either resource_id or resource_name must be provided.
+#' @param dataset_id The ID of the dataset resource. Default is NULL.
+#' @param dataset_name The name of the dataset resource. Default is NULL.
+#'        Either dataset_id or dataset_name must be provided.
 #'
 #' @return A tibble with information about the fields in the dataset.
 #'
 #' @examples
 #' \dontrun{
 #' # Get fields for the "Onderwijslocaties" dataset
-#' fields <- rio_get_fields(resource_name = "Onderwijslocaties")
+#' fields <- rio_get_fields(dataset_name = "Onderwijslocaties")
 #'
 #' # Print the field names that can be used for filtering
 #' print(fields$id)
 #' }
 #'
 #' @export
-rio_get_fields <- function(resource_id = NULL, resource_name = NULL) {
+rio_get_fields <- function(dataset_id = NULL, dataset_name = NULL) {
   # Create connection
   conn <- rio_api_connection()
 
   # Define package_id
   package_id <- "rio_nfo_po_vo_vavo_mbo_ho"
 
-  # Check that either resource_id or resource_name is provided
-  if (is.null(resource_id) && is.null(resource_name)) {
-    stop("Either resource_id or resource_name must be provided")
+  # Check that either dataset_id or dataset_name is provided
+  if (is.null(dataset_id) && is.null(dataset_name)) {
+    stop("Either dataset_id or dataset_name must be provided")
   }
 
-  # If resource_name is provided and resource_id is not, look up the ID
-  if (is.null(resource_id) && !is.null(resource_name)) {
-    resource_id <- get_resource_id_from_name(conn, resource_name, package_id)
-    if (is.null(resource_id)) {
+  # If dataset_name is provided and dataset_id is not, look up the ID
+  if (is.null(dataset_id) && !is.null(dataset_name)) {
+    dataset_id <- get_dataset_id_from_name(conn, dataset_name, package_id)
+    if (is.null(dataset_id)) {
       return(tibble::tibble())
     }
   }
@@ -167,7 +167,7 @@ rio_get_fields <- function(resource_id = NULL, resource_name = NULL) {
     conn,
     "datastore_search",
     method = "POST",
-    body = list(resource_id = resource_id, limit = 0)
+    body = list(dataset_id = dataset_id, limit = 0)
   )
 
   if (!is.null(response$result) && !is.null(response$result$fields)) {

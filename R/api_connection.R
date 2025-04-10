@@ -105,24 +105,24 @@ rio_api_check <- function() {
 #' Helper function to get resource ID from name
 #'
 #' @param conn Connection object
-#' @param resource_name Resource name
+#' @param dataset_name Resource name
 #' @param package_id Package ID
 #'
 #' @return Resource ID or NULL if not found
 #'
 #' @keywords internal
-get_resource_id_from_name <- function(conn = NULL, resource_name, package_id = "rio_nfo_po_vo_vavo_mbo_ho") {
+get_dataset_id_from_name <- function(conn = NULL, dataset_name, package_id = "rio_nfo_po_vo_vavo_mbo_ho") {
   # Get list of datasets
   datasets <- rio_list_datasets(conn, package_id)
 
   # Find dataset with matching name
-  match_idx <- which(datasets$name == resource_name)
+  match_idx <- which(datasets$name == dataset_name)
 
   # Return ID if found, otherwise NULL
   if (length(match_idx) > 0) {
     return(datasets$id[match_idx[1]])
   } else {
-    warning("Dataset with name '", resource_name, "' not found")
+    warning("Dataset with name '", dataset_name, "' not found")
     return(NULL)
   }
 }

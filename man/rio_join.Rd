@@ -4,14 +4,14 @@
 \alias{rio_join}
 \title{Join RIO datasets with dataframe lookup}
 \usage{
-rio_join(df, id_col, resource_id, rio_id_field = NULL, reference_date = NULL)
+rio_join(df, id_col, dataset_id, rio_id_field = NULL, reference_date = NULL)
 }
 \arguments{
 \item{df}{A dataframe containing IDs to look up.}
 
 \item{id_col}{The name of the column in the dataframe containing IDs.}
 
-\item{resource_id}{The ID of the dataset resource to retrieve.}
+\item{dataset_id}{The ID of the dataset resource to retrieve.}
 
 \item{rio_id_field}{The name of the ID field in the RIO dataset. If NULL, uses id_col.}
 
@@ -30,7 +30,7 @@ df <- data.frame(inst_id = c("12345", "67890"), value = c(10, 20))
 result <- rio_join(
   df = df,
   id_col = "inst_id",
-  resource_id = "institution-resource-id",
+  dataset_id = "institution-resource-id",
   rio_id_field = "INSTELLINGSCODE"
 )
 }

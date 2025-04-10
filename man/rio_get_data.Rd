@@ -5,8 +5,8 @@
 \title{Fetch data from a RIO dataset}
 \usage{
 rio_get_data(
-  resource_id = NULL,
-  resource_name = NULL,
+  dataset_id = NULL,
+  dataset_name = NULL,
   limit = NULL,
   query = NULL,
   all_records = TRUE,
@@ -16,10 +16,10 @@ rio_get_data(
 )
 }
 \arguments{
-\item{resource_id}{The ID of the dataset resource to retrieve. Default is NULL.}
+\item{dataset_id}{The ID of the dataset resource to retrieve. Default is NULL.}
 
-\item{resource_name}{The name of the dataset resource to retrieve. Default is NULL.
-Either resource_id or resource_name must be provided.}
+\item{dataset_name}{The name of the dataset resource to retrieve. Default is NULL.
+Either dataset_id or dataset_name must be provided.}
 
 \item{limit}{Maximum number of records to return. Default is NULL (all records).
 Specify a number to limit the results.}
@@ -42,7 +42,7 @@ A tibble containing the retrieved data.
 }
 \description{
 This function retrieves data from a specific dataset in the RIO CKAN API.
-You can specify either a resource_id or a resource_name to identify the dataset.
+You can specify either a dataset_id or a dataset_name to identify the dataset.
 Additional filter parameters can be provided to filter the data.
 By default, this function retrieves all available records (not just the first 1000).
 }
@@ -50,25 +50,25 @@ By default, this function retrieves all available records (not just the first 10
 \dontrun{
 # Get all educational locations in Rotterdam
 locations <- rio_get_data(
-  resource_name = "Onderwijslocaties",
+  dataset_name = "Onderwijslocaties",
   PLAATSNAAM = "Rotterdam"
 )
 
 # Get only the first 500 records
 limited_data <- rio_get_data(
-  resource_name = "Onderwijslocaties",
+  dataset_name = "Onderwijslocaties",
   limit = 500
 )
 
 # Get the first 1000 records without attempting to fetch all records
 first_batch <- rio_get_data(
-  resource_name = "Onderwijslocaties",
+  dataset_name = "Onderwijslocaties",
   all_records = FALSE
 )
 
 # Fetch data without showing progress bar
 silent_fetch <- rio_get_data(
-  resource_name = "Onderwijslocaties",
+  dataset_name = "Onderwijslocaties",
   quiet = TRUE
 )
 }

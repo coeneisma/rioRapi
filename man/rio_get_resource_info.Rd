@@ -4,13 +4,13 @@
 \alias{rio_get_resource_info}
 \title{Get detailed information about a specific dataset}
 \usage{
-rio_get_resource_info(resource_id = NULL, resource_name = NULL)
+rio_get_resource_info(dataset_id = NULL, dataset_name = NULL)
 }
 \arguments{
-\item{resource_id}{The ID of the resource to retrieve. Default is NULL.}
+\item{dataset_id}{The ID of the resource to retrieve. Default is NULL.}
 
-\item{resource_name}{The name of the dataset resource to retrieve. Default is NULL.
-Either resource_id or resource_name must be provided.}
+\item{dataset_name}{The name of the dataset resource to retrieve. Default is NULL.
+Either dataset_id or dataset_name must be provided.}
 }
 \value{
 A list containing detailed information about the dataset.

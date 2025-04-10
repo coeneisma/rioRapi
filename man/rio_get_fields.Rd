@@ -4,13 +4,13 @@
 \alias{rio_get_fields}
 \title{Get information about fields in a dataset}
 \usage{
-rio_get_fields(resource_id = NULL, resource_name = NULL)
+rio_get_fields(dataset_id = NULL, dataset_name = NULL)
 }
 \arguments{
-\item{resource_id}{The ID of the dataset resource. Default is NULL.}
+\item{dataset_id}{The ID of the dataset resource. Default is NULL.}
 
-\item{resource_name}{The name of the dataset resource. Default is NULL.
-Either resource_id or resource_name must be provided.}
+\item{dataset_name}{The name of the dataset resource. Default is NULL.
+Either dataset_id or dataset_name must be provided.}
 }
 \value{
 A tibble with information about the fields in the dataset.
@@ -22,7 +22,7 @@ which can be used for filtering in the rio_get_data function.
 \examples{
 \dontrun{
 # Get fields for the "Onderwijslocaties" dataset
-fields <- rio_get_fields(resource_name = "Onderwijslocaties")
+fields <- rio_get_fields(dataset_name = "Onderwijslocaties")
 
 # Print the field names that can be used for filtering
 print(fields$id)
