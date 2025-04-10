@@ -1,0 +1,23 @@
+Package: rioRapi
+Title: R Package for the Dutch Register of Institutions and Programs (RIO) API
+Version: 0.0.0.9000
+Authors@R: 
+    person("Coen", "Eisma", , "coeneisma@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0009-0007-9001-2572"))
+Description: This package provides functions to retrieve and combine data from the Dutch Register of Institutions and Programs (RIO) via the CKAN API.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports: 
+    dplyr,
+    jsonlite,
+    leaflet,
+    purrr,
+    tibble,
+    sf,
+    cli
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+URL: https://coeneisma.github.io/rioRapi/
