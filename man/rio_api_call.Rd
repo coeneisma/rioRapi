@@ -4,18 +4,9 @@
 \alias{rio_api_call}
 \title{Execute an API call to the RIO CKAN API}
 \usage{
-rio_api_call(
-  req = NULL,
-  endpoint,
-  method = "GET",
-  body = NULL,
-  simplify = TRUE
-)
+rio_api_call(endpoint, method = "GET", body = NULL, simplify = TRUE)
 }
 \arguments{
-\item{req}{A request object, typically created with \code{rio_api_connection()}.
-If NULL, a new connection will be created.}
-
 \item{endpoint}{The API endpoint to call.}
 
 \item{method}{The HTTP method to use. Default is "GET".}
@@ -23,6 +14,9 @@ If NULL, a new connection will be created.}
 \item{body}{The request body as a list for POST requests. Default is NULL.}
 
 \item{simplify}{Whether to simplify the response to R vectors/matrices. Default is TRUE.}
+
+\item{req}{A request object, typically created with \code{rio_api_connection()}.
+If NULL, a new connection will be created.}
 }
 \value{
 The parsed JSON response from the API.

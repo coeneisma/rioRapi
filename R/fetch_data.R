@@ -55,9 +55,6 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
                          all_records = TRUE, batch_size = 1000,
                          quiet = FALSE,
                          ...) {
-  # Create connection
-  conn <- rio_api_connection()
-
   # Check that either dataset_id or dataset_name is provided
   if (is.null(dataset_id) && is.null(dataset_name)) {
     stop("Either dataset_id or dataset_name must be provided")
@@ -65,13 +62,13 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
 
   # If dataset_name is provided and dataset_id is not, look up the ID
   if (is.null(dataset_id) && !is.null(dataset_name)) {
-    dataset_name <- dataset_name  # Store for later use in messages
-    dataset_id <- get_dataset_id_from_name(conn, dataset_name, "rio_nfo_po_vo_vavo_mbo_ho")
+    dataset_name_for_messages <- dataset_name  # Store for later use in messages
+    dataset_id <- get_dataset_id_from_name(dataset_name)
     if (is.null(dataset_id)) {
       return(tibble::tibble())
     }
   } else {
-    dataset_name <- dataset_id  # Use ID for messages if name isn't provided
+    dataset_name_for_messages <- dataset_id  # Use ID for messages if name isn't provided
   }
 
   # Process additional filter parameters
@@ -104,12 +101,11 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     }
 
     if (!quiet) {
-      cli::cli_alert_info("Fetching data from dataset: {.val {dataset_name}}")
+      cli::cli_alert_info("Fetching data from dataset: {.val {dataset_name_for_messages}}")
     }
 
     # Execute API call
     response <- rio_api_call(
-      conn,
       "datastore_search",
       method = "POST",
       body = body
@@ -135,7 +131,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     # We're fetching all records, so we need to make multiple API calls
 
     # First, get the total number of records
-    resource_info <- rio_get_resource_info(conn, dataset_id = dataset_id)
+    resource_info <- rio_get_resource_info(dataset_id = dataset_id)
 
     # Check if we have the preview_rows information
     total_records <- NULL
@@ -146,11 +142,10 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     if (is.null(total_records) || is.na(total_records)) {
       # If we don't have total_records from metadata, make an initial query to get total
       if (!quiet) {
-        cli::cli_alert_info("Determining total number of records in dataset: {.val {dataset_name}}")
+        cli::cli_alert_info("Determining total number of records in dataset: {.val {dataset_name_for_messages}}")
       }
 
       initial_query <- rio_api_call(
-        conn,
         "datastore_search",
         method = "POST",
         body = list(
@@ -172,10 +167,11 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     }
 
     if (!quiet) {
-      cli::cli_alert_info("Fetching {total_records} records from dataset: {.val {dataset_name}}")
-      # Initialize progress bar
-      pb <- cli::cli_progress_bar(
-        format = "{cli::pb_spin} Fetching records [{cli::pb_current}/{cli::pb_total}] {cli::pb_percent} | ETA: {cli::pb_eta}",
+      cli::cli_alert_info("Fetching {total_records} records from dataset: {.val {dataset_name_for_messages}}")
+
+      # Initialize progress bar with improved format
+      cli::cli_progress_bar(
+        format = "{cli::pb_spin} Fetching records [{cli::pb_current}/{cli::pb_total}] {cli::pb_percent} | Elapsed: {cli::pb_elapsed} | ETA: {cli::pb_eta}",
         total = total_records,
         clear = FALSE
       )
@@ -184,6 +180,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     # Initialize an empty list to store all batches of data
     all_data <- list()
     records_fetched <- 0
+    start_time <- Sys.time()
 
     # Loop until we've fetched all records
     while (records_fetched < total_records) {
@@ -204,7 +201,6 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
 
       # Execute API call
       batch_response <- rio_api_call(
-        conn,
         "datastore_search",
         method = "POST",
         body = body
@@ -225,9 +221,13 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
       new_records <- nrow(batch_data)
       records_fetched <- records_fetched + new_records
 
-      # Update progress bar
+      # Update progress bar with current speed
       if (!quiet) {
-        cli::cli_progress_update(set = records_fetched)
+        cli::cli_progress_update(
+          set = records_fetched,
+          status = sprintf("Speed: %.1f records/sec",
+                           records_fetched / as.numeric(difftime(Sys.time(), start_time, units = "secs")))
+        )
       }
 
       # If we got fewer records than requested, we've reached the end
@@ -254,8 +254,11 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
       result <- dplyr::bind_rows(all_data)
     }
 
+    elapsed_time <- difftime(Sys.time(), start_time, units = "secs")
+
     if (!quiet) {
-      cli::cli_alert_success("Retrieved {nrow(result)} records")
+      speed <- nrow(result) / as.numeric(elapsed_time)
+      cli::cli_alert_success("Retrieved {nrow(result)} records in {round(elapsed_time, 1)} seconds ({round(speed, 1)} records/sec)")
     }
 
     return(result)

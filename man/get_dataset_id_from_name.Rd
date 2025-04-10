@@ -4,16 +4,12 @@
 \alias{get_dataset_id_from_name}
 \title{Helper function to get resource ID from name}
 \usage{
-get_dataset_id_from_name(
-  conn = NULL,
-  dataset_name,
-  package_id = "rio_nfo_po_vo_vavo_mbo_ho"
-)
+get_dataset_id_from_name(dataset_name)
 }
 \arguments{
-\item{conn}{Connection object}
-
 \item{dataset_name}{Resource name}
+
+\item{conn}{Connection object}
 
 \item{package_id}{Package ID}
 }
