@@ -1,375 +1,29 @@
-#' Intelligently link multiple RIO datasets
+#' Detecteer de structuur van RIO datasets en hun onderlinge relaties
 #'
-#' This function links multiple RIO datasets by automatically detecting and using
-#' the most appropriate connections between them. It leverages a pre-built structure mapping
-#' of the RIO database to determine optimal joining paths.
+#' Deze functie analyseert alle beschikbare RIO datasets en hun velden om potentiële
+#' relaties tussen datasets te identificeren. De resultaten worden opgeslagen voor later gebruik.
 #'
-#' @param ... Named tibbles to link. Each argument should be a tibble with data from RIO.
-#' @param method The linking method to use. Options are:
-#'        - "smart" (default): Use the pre-built structure mapping to find optimal connections
-#'        - "auto": Automatically detect connections from the provided datasets only
-#'        - "manual": Use the explicitly specified 'by' parameter for joining
-#' @param by Character vector of columns to join by (only used with method = "manual").
-#'        If NULL and method = "manual", will try to join by all columns with the same name.
-#' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
-#' @param max_distance Maximum connection distance to consider when using method = "smart".
-#'        Default is 3.
-#' @param create_mapping Logical indicating whether to create a new structure mapping
-#'        if none exists when using method = "smart". Default is TRUE.
-#' @param suffix Suffixes to add to make non-by column names unique across the joined tables.
-#' @param verbose Logical indicating whether to show detailed connection information.
-#'        Default is TRUE.
+#' @param force Logische waarde die aangeeft of een nieuwe detectie moet worden uitgevoerd,
+#'        zelfs als er al een recente structuurdetectie bestaat. Standaard is FALSE.
+#' @param days_threshold Aantal dagen waarna een structuurdetectie als verouderd wordt beschouwd.
+#'        Standaard is 28 (4 weken).
+#' @param save_dir Map waarin het resultaat wordt opgeslagen. Standaard is de data-map van het pakket.
+#' @param quiet Logische waarde die aangeeft of voortgangsberichten onderdrukt moeten worden. Standaard is FALSE.
 #'
-#' @return A linked tibble with data from all input tibbles.
+#' @return Geeft een lijst terug met de gedetecteerde RIO structuur (invisible).
 #'
 #' @examples
 #' \dontrun{
-#' # Get data from different datasets
-#' locations <- rio_get_locations(city = "Amsterdam")
-#' institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
-#' vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
+#' # Detecteer de RIO structuur en sla deze op
+#' rio_detect_structure()
 #'
-#' # Smart linking using pre-built structure mapping
-#' linked_data <- rio_link_datasets(
-#'   locations = locations,
-#'   institutions = institutions,
-#'   vestigingen = vestigingen
-#' )
-#'
-#' # Auto-detect connections without using pre-built mapping
-#' linked_data_auto <- rio_link_datasets(
-#'   locations = locations,
-#'   institutions = institutions,
-#'   method = "auto"
-#' )
-#'
-#' # Manual linking with specified joining fields
-#' linked_data_manual <- rio_link_datasets(
-#'   locations = locations,
-#'   vestigingen = vestigingen,
-#'   method = "manual",
-#'   by = c("VESTIGINGSCODE" = "ONDERWIJSLOCATIECODE")
-#' )
+#' # Forceer een nieuwe detectie, zelfs als er een recente bestaat
+#' rio_detect_structure(force = TRUE)
 #' }
 #'
 #' @export
-rio_link_datasets <- function(..., method = "smart", by = NULL, reference_date = NULL,
-                              max_distance = 3, create_mapping = TRUE,
-                              suffix = c("_x", "_y"), verbose = TRUE) {
-  # Get the input tibbles
-  tibbles <- list(...)
-
-  # Check if tibbles were provided
-  if (length(tibbles) < 2) {
-    stop("At least two datasets must be provided for linking")
-  }
-
-  # Execute the appropriate linking method
-  if (method == "smart") {
-    # Check if we have a structure mapping file
-    mapping_exists <- file.exists(file.path(get_rio_data_dir(), "rio_structure_mapping.rds"))
-
-    if (!mapping_exists && !create_mapping) {
-      stop("No RIO structure mapping found and create_mapping = FALSE. ",
-           "Run rio_map_structure() first or set create_mapping = TRUE.")
-    }
-
-    # Use smart combination based on the pre-built structure mapping
-    return(rio_combine_smart(
-      ...,
-      auto_map = create_mapping,
-      max_path_length = max_distance,
-      reference_date = reference_date,
-      verbose = verbose
-    ))
-  } else if (method == "auto") {
-    # Use automatic detection based on the provided datasets only
-    if (verbose) {
-      message("Using automatic connection detection for the provided datasets")
-    }
-
-    return(rio_auto_connect(
-      ...,
-      auto_join = TRUE,
-      reference_date = reference_date,
-      verbose = verbose
-    ))
-  } else if (method == "manual") {
-    # Use manual joining by specified fields
-    if (verbose) {
-      message("Using manual connection with specified 'by' parameter")
-    }
-
-    # Manual joining logic - implementation that replaces rio_combine()
-    # Start with the first tibble
-    result <- tibbles[[1]]
-    dataset_names <- names(tibbles)
-
-    # Join with each of the remaining tibbles
-    for (i in 2:length(tibbles)) {
-      if (verbose) {
-        cli::cli_alert_info("Joining '{dataset_names[i]}' using manually specified fields")
-      }
-      result <- dplyr::left_join(result, tibbles[[i]], by = by, suffix = suffix)
-    }
-
-    # Apply reference date filtering if required
-    if (!is.null(reference_date)) {
-      if (verbose) {
-        cli::cli_alert_info("Filtering by reference date: {reference_date}")
-      }
-      # Filter the result
-      result <- rio_filter_by_reference_date(result, reference_date)
-    }
-
-    return(result)
-  } else {
-    stop("Invalid method: ", method, ". Use 'smart', 'auto', or 'manual'.")
-  }
-}
-#' Generate a visualization of dataset connections
-#'
-#' This function creates a visualization showing the connections between RIO datasets,
-#' either from a structure mapping or from the datasets provided.
-#'
-#' @param ... Optional named tibbles to visualize connections between.
-#' @param structure Optional RIO structure mapping as returned by rio_load_structure().
-#'        If NULL and no tibbles are provided, it will be loaded automatically.
-#' @param min_confidence Minimum confidence level for connections.
-#'        Can be "high" or "medium". Default is "medium".
-#' @param interactive Logical indicating whether to create an interactive visualization
-#'        (requires visNetwork package). Default is TRUE.
-#' @param highlight_datasets Character vector of dataset names to highlight in the visualization.
-#'
-#' @return A visualization object showing the connections between datasets.
-#'
-#' @examples
-#' \dontrun{
-#' # Visualize connections from the structure mapping
-#' rio_visualize_dataset_connections()
-#'
-#' # Visualize connections between specific datasets
-#' locations <- rio_get_locations(city = "Amsterdam")
-#' institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
-#' vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
-#'
-#' rio_visualize_dataset_connections(
-#'   locations = locations,
-#'   institutions = institutions,
-#'   vestigingen = vestigingen,
-#'   highlight_datasets = c("locations", "vestigingen")
-#' )
-#' }
-#'
-#' @export
-rio_visualize_dataset_connections <- function(..., structure = NULL, min_confidence = "medium",
-                                              interactive = TRUE, highlight_datasets = NULL) {
-  # Get the input tibbles if provided
-  tibbles <- list(...)
-
-  # If tibbles are provided, use them for connection detection
-  if (length(tibbles) > 0) {
-    # Detect connections between the provided tibbles
-    connections <- rio_auto_connect(..., auto_join = FALSE, verbose = FALSE)
-
-    # Visualize the detected connections
-    return(rio_visualize_connections(
-      connections,
-      min_confidence = min_confidence,
-      interactive = interactive
-    ))
-  } else {
-    # No tibbles provided, use the structure mapping
-    if (is.null(structure)) {
-      structure <- rio_load_structure(auto_create = TRUE)
-    }
-
-    # Create a graph from the structure mapping
-    g <- igraph::make_graph(directed = FALSE)
-
-    # Add all datasets as vertices
-    dataset_names <- names(structure$datasets)
-    g <- igraph::add_vertices(g, length(dataset_names), name = dataset_names)
-
-    # Add highlight property to vertices
-    igraph::V(g)$highlight <- dataset_names %in% highlight_datasets
-
-    # Add edges based on relationships with sufficient confidence
-    edge_labels <- character(0)
-    edge_colors <- character(0)
-    edge_widths <- numeric(0)
-
-    for (rel_name in names(structure$relationships)) {
-      rel <- structure$relationships[[rel_name]]
-
-      # Skip relations with insufficient confidence
-      if ((min_confidence == "high" && rel$confidence != "high")) {
-        next
-      }
-
-      # Add an edge
-      g <- igraph::add_edges(g, c(rel$source, rel$target))
-
-      # Get the joining field(s) for the edge label
-      if (length(rel$exact_matches) > 0) {
-        join_fields <- rel$exact_matches
-      } else if (length(rel$relation_matches) > 0) {
-        join_fields <- sapply(rel$relation_matches, function(x) x$rel_field)
-      } else if (length(rel$similar_matches) > 0) {
-        join_fields <- sapply(rel$similar_matches, function(x) paste(x$source_field, "=", x$target_field))
-      } else {
-        join_fields <- "Unknown connection"
-      }
-
-      edge_id <- igraph::ecount(g)
-      edge_labels[edge_id] <- paste(join_fields, collapse = "\n")
-
-      # Assign color and width based on confidence
-      edge_colors[edge_id] <- ifelse(rel$confidence == "high", "green", "orange")
-      edge_widths[edge_id] <- ifelse(rel$confidence == "high", 3, 2)
-    }
-
-    # Set edge attributes
-    igraph::E(g)$label <- edge_labels
-    igraph::E(g)$color <- edge_colors
-    igraph::E(g)$width <- edge_widths
-
-    # Set vertex attributes
-    igraph::V(g)$label <- igraph::V(g)$name
-    igraph::V(g)$color <- ifelse(igraph::V(g)$highlight, "yellow", "lightblue")
-
-    # Create visualization
-    if (interactive) {
-      # Create interactive visualization with visNetwork
-      if (!requireNamespace("visNetwork", quietly = TRUE)) {
-        warning("Package 'visNetwork' is required for interactive visualization. Using static visualization instead.")
-        interactive <- FALSE
-      } else {
-        nodes <- data.frame(
-          id = igraph::V(g)$name,
-          label = igraph::V(g)$name,
-          title = igraph::V(g)$name,  # Tooltip
-          color = ifelse(igraph::V(g)$highlight, "yellow", "lightblue"),
-          stringsAsFactors = FALSE
-        )
-
-        edges <- data.frame(
-          from = igraph::get.edgelist(g)[, 1],
-          to = igraph::get.edgelist(g)[, 2],
-          label = igraph::E(g)$label,
-          color = igraph::E(g)$color,
-          width = igraph::E(g)$width,
-          title = igraph::E(g)$label,  # Tooltip
-          stringsAsFactors = FALSE
-        )
-
-        return(visNetwork::visNetwork(nodes, edges) %>%
-                 visNetwork::visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
-                 visNetwork::visLayout(randomSeed = 123))  # For consistent layout
-      }
-    }
-
-    if (!interactive) {
-      # Create static visualization with igraph
-      plot(g,
-           layout = igraph::layout_with_fr(g),
-           vertex.size = 20,
-           vertex.label.color = "black",
-           vertex.label.cex = 0.8,
-           edge.label.cex = 0.7,
-           edge.curved = 0.2,
-           main = "RIO Datasets Connection Network")
-
-      # Add legend
-      legend("bottomright",
-             legend = c("High Confidence", "Medium Confidence", "Highlighted Dataset"),
-             col = c("green", "orange", "yellow"),
-             lwd = c(3, 2, 10),
-             cex = 0.8)
-    }
-  }
-}
-
-#' Join RIO datasets with dataframe lookup
-#'
-#' This function joins data from a RIO dataset based on IDs in a dataframe.
-#'
-#' @param df A dataframe containing IDs to look up.
-#' @param id_col The name of the column in the dataframe containing IDs.
-#' @param dataset_id The ID of the dataset resource to retrieve.
-#' @param rio_id_field The name of the ID field in the RIO dataset. If NULL, uses id_col.
-#' @param reference_date Optional date to filter valid records. Default is the current date.
-#'
-#' @return A tibble with the input dataframe joined with data from the RIO dataset.
-#'
-#' @examples
-#' \dontrun{
-#' # Join a dataframe with institution data
-#' df <- data.frame(inst_id = c("12345", "67890"), value = c(10, 20))
-#' result <- rio_join(
-#'   df = df,
-#'   id_col = "inst_id",
-#'   dataset_id = "institution-resource-id",
-#'   rio_id_field = "INSTELLINGSCODE"
-#' )
-#' }
-#'
-#' @export
-rio_join <- function(df, id_col, dataset_id, rio_id_field = NULL, reference_date = NULL) {
-  # If rio_id_field is not specified, use id_col
-  if (is.null(rio_id_field)) {
-    rio_id_field <- id_col
-  }
-
-  # Extract unique IDs from the dataframe
-  ids <- unique(df[[id_col]])
-
-  # Look up the data using rio_lookup (internal function)
-  rio_data <- rio_lookup(
-    ids = ids,
-    dataset_id = dataset_id,
-    id_field = rio_id_field,
-    reference_date = reference_date
-  )
-
-  # Join with the input dataframe
-  if (id_col != rio_id_field) {
-    # Rename rio_id_field to id_col for joining
-    rio_data <- rio_data |>
-      dplyr::rename(!!id_col := !!rio_id_field)
-  }
-
-  result <- dplyr::left_join(df, rio_data, by = id_col)
-
-  return(result)
-}
-
-#' Map the structure of RIO datasets and their relationships
-#'
-#' This function analyzes all available RIO datasets and their fields to identify
-#' potential relationships between them. The results are saved to a file for future use.
-#'
-#' @param force Logical indicating whether to force a remapping even if a recent mapping exists.
-#'        Default is FALSE.
-#' @param days_threshold Number of days after which a mapping is considered outdated.
-#'        Default is 28 (4 weeks).
-#' @param save_dir Directory where to save the mapping file. Default is the package's user data dir.
-#' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#'
-#' @return Invisibly returns a list containing the RIO structure mapping.
-#'
-#' @examples
-#' \dontrun{
-#' # Map the RIO structure and save it
-#' rio_map_structure()
-#'
-#' # Force remapping even if a recent mapping exists
-#' rio_map_structure(force = TRUE)
-#' }
-#'
-#' @export
-rio_map_structure <- function(force = FALSE, days_threshold = 28,
-                              save_dir = get_rio_data_dir(), quiet = FALSE) {
+rio_detect_structure <- function(force = FALSE, days_threshold = 28,
+                                 save_dir = get_rio_data_dir(), quiet = FALSE) {
 
   # Get the path for the mapping file
   mapping_file <- file.path(save_dir, "rio_structure_mapping.rds")
@@ -390,7 +44,7 @@ rio_map_structure <- function(force = FALSE, days_threshold = 28,
   }
 
   if (!quiet) {
-    cli::cli_alert_info("Mapping RIO structure. This may take several minutes...")
+    cli::cli_alert_info("Detecting RIO structure. This may take several minutes...")
   }
 
   # Create output directory if it doesn't exist
@@ -574,45 +228,45 @@ rio_map_structure <- function(force = FALSE, days_threshold = 28,
 
   if (!quiet) {
     relation_count <- length(rio_structure$relationships)
-    cli::cli_alert_success("RIO structure mapping completed: found {relation_count} potential relationships")
-    cli::cli_alert_info("Mapping saved to: {mapping_file}")
+    cli::cli_alert_success("RIO structure detection completed: found {relation_count} potential relationships")
+    cli::cli_alert_info("Structure saved to: {mapping_file}")
   }
 
   invisible(rio_structure)
 }
 
-#' Load the RIO structure mapping
+#' Laad de gedetecteerde RIO structuur
 #'
-#' This function loads the saved RIO structure mapping. If no mapping exists or it's
-#' outdated, it will optionally create a new one.
+#' Deze functie laadt de opgeslagen RIO structuur. Als er geen structuur bestaat of deze
+#' verouderd is, kan optioneel een nieuwe detectie worden uitgevoerd.
 #'
-#' @param auto_create Logical indicating whether to automatically create a mapping if
-#'        none exists or if it's outdated. Default is TRUE.
-#' @param days_threshold Number of days after which a mapping is considered outdated.
-#'        Default is 28 (4 weeks).
-#' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
+#' @param auto_detect Logische waarde die aangeeft of automatisch een nieuwe structuurdetectie
+#'        moet worden uitgevoerd als er geen bestaat of als deze verouderd is. Standaard is TRUE.
+#' @param days_threshold Aantal dagen waarna een structuurdetectie als verouderd wordt beschouwd.
+#'        Standaard is 28 (4 weken).
+#' @param quiet Logische waarde die aangeeft of voortgangsberichten onderdrukt moeten worden. Standaard is FALSE.
 #'
-#' @return A list containing the RIO structure mapping.
+#' @return Een lijst met de gedetecteerde RIO structuur.
 #'
 #' @examples
 #' \dontrun{
-#' # Load the RIO structure mapping
-#' mapping <- rio_load_structure()
+#' # Laad de RIO structuur
+#' structure <- rio_load_structure()
 #' }
 #'
-#' @export
-rio_load_structure <- function(auto_create = TRUE, days_threshold = 28, quiet = FALSE) {
+#' @keywords internal
+rio_load_structure <- function(auto_detect = TRUE, days_threshold = 28, quiet = FALSE) {
   mapping_file <- file.path(get_rio_data_dir(), "rio_structure_mapping.rds")
 
   # Check if mapping exists
   if (!file.exists(mapping_file)) {
-    if (auto_create) {
+    if (auto_detect) {
       if (!quiet) {
-        cli::cli_alert_info("No existing RIO structure mapping found. Creating new mapping...")
+        cli::cli_alert_info("No existing RIO structure found. Creating new structure...")
       }
-      return(rio_map_structure(quiet = quiet))
+      return(rio_detect_structure(quiet = quiet))
     } else {
-      stop("No RIO structure mapping found. Run rio_map_structure() first.")
+      stop("No RIO structure found. Run rio_detect_structure() first.")
     }
   }
 
@@ -621,61 +275,81 @@ rio_load_structure <- function(auto_create = TRUE, days_threshold = 28, quiet = 
   file_age <- as.numeric(difftime(Sys.time(), file_info$mtime, units = "days"))
 
   if (file_age >= days_threshold) {
-    if (auto_create) {
+    if (auto_detect) {
       if (!quiet) {
-        cli::cli_alert_warning("Existing mapping is {round(file_age, 1)} days old (threshold: {days_threshold}). Regenerating...")
+        cli::cli_alert_warning("Existing structure is {round(file_age, 1)} days old (threshold: {days_threshold}). Regenerating...")
       }
-      return(rio_map_structure(quiet = quiet))
+      return(rio_detect_structure(quiet = quiet))
     } else if (!quiet) {
-      cli::cli_alert_warning("Existing mapping is {round(file_age, 1)} days old (threshold: {days_threshold})")
+      cli::cli_alert_warning("Existing structure is {round(file_age, 1)} days old (threshold: {days_threshold})")
     }
   } else if (!quiet) {
-    cli::cli_alert_info("Using existing RIO structure mapping (age: {round(file_age, 1)} days)")
+    cli::cli_alert_info("Using existing RIO structure (age: {round(file_age, 1)} days)")
   }
 
   # Load the mapping
-  mapping <- readRDS(mapping_file)
-  return(mapping)
+  structure <- readRDS(mapping_file)
+  return(structure)
 }
 
-#' Generate a visualization of dataset connections
+#' Visualize relationships between RIO datasets
 #'
-#' This function creates a visualization showing the connections between RIO datasets,
-#' either from a structure mapping or from the datasets provided.
+#' This function creates a visualization of the relationships between RIO datasets
+#' based on the detected structure. It can show connections between specific datasets,
+#' including indirect connections through intermediary datasets.
 #'
-#' @param ... Optional named tibbles to visualize connections between.
-#' @param structure Optional RIO structure mapping as returned by rio_load_structure().
-#'        If NULL and no tibbles are provided, it will be loaded automatically.
-#' @param min_confidence Minimum confidence level for connections.
+#' @param datasets Optional character vector of dataset names to visualize.
+#'        If NULL, all datasets in the structure will be visualized.
+#' @param structure Optional RIO structure as returned by rio_load_structure().
+#'        If NULL, the structure will be loaded automatically.
+#' @param min_confidence Minimum confidence level for relationships.
 #'        Can be "high" or "medium". Default is "medium".
 #' @param interactive Logical indicating whether to create an interactive visualization
 #'        (requires visNetwork package). Default is TRUE.
 #' @param highlight_datasets Character vector of dataset names to highlight in the visualization.
+#' @param find_paths Logical indicating whether to find connection paths between datasets
+#'        that are not directly connected. Default is TRUE.
+#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
+#'        Default is 3.
+#' @param ... Optional named tibbles to visualize connections between (alternative method).
 #'
-#' @return A visualization object showing the connections between datasets.
+#' @return A visualization object showing the relationships between datasets.
 #'
 #' @examples
 #' \dontrun{
-#' # Visualize connections from the structure mapping
-#' rio_visualize_dataset_connections()
+#' # Visualize all relationships from the detected structure
+#' rio_visualize_structure()
 #'
-#' # Visualize connections between specific datasets
+#' # Visualize only the relationship between two specific datasets
+#' rio_visualize_structure(datasets = c("onderwijslocaties", "vestigingserkenningen"))
+#'
+#' # Find indirect connection paths between datasets that aren't directly connected
+#' rio_visualize_structure(
+#'   datasets = c("onderwijslocaties", "onderwijsinstellingserkenningen"),
+#'   find_paths = TRUE
+#' )
+#'
+#' # Specify additional parameters
+#' rio_visualize_structure(
+#'   datasets = c("onderwijslocaties", "vestigingserkenningen", "onderwijsinstellingserkenningen"),
+#'   highlight_datasets = c("onderwijslocaties"),
+#'   min_confidence = "high"
+#' )
+#'
+#' # Alternative method with loaded datasets
 #' locations <- rio_get_locations(city = "Amsterdam")
 #' institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
-#' vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
-#'
-#' rio_visualize_dataset_connections(
+#' rio_visualize_structure(
 #'   locations = locations,
-#'   institutions = institutions,
-#'   vestigingen = vestigingen,
-#'   highlight_datasets = c("locations", "vestigingen")
+#'   institutions = institutions
 #' )
 #' }
 #'
 #' @export
-rio_visualize_dataset_connections <- function(..., structure = NULL, min_confidence = "medium",
-                                              interactive = TRUE, highlight_datasets = NULL) {
-  # Get the input tibbles if provided
+rio_visualize_structure <- function(datasets = NULL, structure = NULL, min_confidence = "medium",
+                                    interactive = TRUE, highlight_datasets = NULL,
+                                    find_paths = TRUE, max_path_length = 3, ...) {
+  # Get the input tibbles if provided via ...
   tibbles <- list(...)
 
   # If tibbles are provided, use them for connection detection
@@ -690,26 +364,46 @@ rio_visualize_dataset_connections <- function(..., structure = NULL, min_confide
       interactive = interactive
     ))
   } else {
-    # No tibbles provided, use the structure mapping
+    # Load structure if not provided
     if (is.null(structure)) {
-      structure <- rio_load_structure(auto_create = TRUE)
+      structure <- rio_load_structure(auto_detect = TRUE)
     }
 
-    # Create a graph from the structure mapping
-    g <- igraph::make_graph(directed = FALSE)
+    # Determine which datasets to visualize
+    if (is.null(datasets)) {
+      # If no datasets specified, use all datasets in the structure
+      dataset_names <- names(structure$datasets)
+    } else {
+      # Check if specified datasets exist in the structure
+      all_datasets <- names(structure$datasets)
+      missing_datasets <- datasets[!datasets %in% all_datasets]
 
-    # Add all datasets as vertices
-    dataset_names <- names(structure$datasets)
-    g <- igraph::add_vertices(g, length(dataset_names), name = dataset_names)
+      if (length(missing_datasets) > 0) {
+        warning("The following datasets were not found in the RIO structure: ",
+                paste(missing_datasets, collapse = ", "))
+        # Use only the valid datasets
+        dataset_names <- datasets[datasets %in% all_datasets]
+      } else {
+        dataset_names <- datasets
+      }
 
-    # Add highlight property to vertices
-    igraph::V(g)$highlight <- dataset_names %in% highlight_datasets
+      if (length(dataset_names) == 0) {
+        stop("No valid datasets specified for visualization")
+      }
+    }
 
-    # Add edges based on relationships with sufficient confidence
-    edge_labels <- character(0)
-    edge_colors <- character(0)
-    edge_widths <- numeric(0)
+    # Create a graph representation of the structure for finding paths
+    full_graph <- igraph::graph_from_data_frame(d = data.frame(source = character(0),
+                                                               target = character(0)),
+                                                directed = FALSE)
 
+    # Add all datasets as vertices to the full graph
+    all_dataset_names <- names(structure$datasets)
+    for (dataset in all_dataset_names) {
+      full_graph <- igraph::add_vertices(full_graph, 1, name = dataset)
+    }
+
+    # Add all edges to the full graph (we'll use this for path finding)
     for (rel_name in names(structure$relationships)) {
       rel <- structure$relationships[[rel_name]]
 
@@ -718,37 +412,151 @@ rio_visualize_dataset_connections <- function(..., structure = NULL, min_confide
         next
       }
 
-      # Add an edge
-      g <- igraph::add_edges(g, c(rel$source, rel$target))
+      # Add the edge
+      full_graph <- igraph::add_edges(full_graph, c(rel$source, rel$target))
 
-      # Get the joining field(s) for the edge label
-      if (length(rel$exact_matches) > 0) {
-        join_fields <- rel$exact_matches
-      } else if (length(rel$relation_matches) > 0) {
-        join_fields <- sapply(rel$relation_matches, function(x) x$rel_field)
-      } else if (length(rel$similar_matches) > 0) {
-        join_fields <- sapply(rel$similar_matches, function(x) paste(x$source_field, "=", x$target_field))
-      } else {
-        join_fields <- "Unknown connection"
-      }
-
-      edge_id <- igraph::ecount(g)
-      edge_labels[edge_id] <- paste(join_fields, collapse = "\n")
-
-      # Assign color and width based on confidence
-      edge_colors[edge_id] <- ifelse(rel$confidence == "high", "green", "orange")
-      edge_widths[edge_id] <- ifelse(rel$confidence == "high", 3, 2)
+      # Store relationship details
+      edge_id <- igraph::ecount(full_graph)
+      igraph::E(full_graph)$relationship_name[edge_id] <- rel_name
     }
 
-    # Set edge attributes
-    igraph::E(g)$label <- edge_labels
-    igraph::E(g)$color <- edge_colors
-    igraph::E(g)$width <- edge_widths
+    # Create the visualization graph
+    g <- igraph::graph_from_data_frame(d = data.frame(source = character(0),
+                                                      target = character(0)),
+                                       directed = FALSE)
+
+    # If we need to find paths between datasets
+    datasets_to_include <- dataset_names
+    connection_paths <- list()
+
+    if (find_paths && length(dataset_names) > 1 && length(dataset_names) < length(all_dataset_names)) {
+      # Find all paths between each pair of datasets
+      for (i in 1:(length(dataset_names) - 1)) {
+        for (j in (i + 1):length(dataset_names)) {
+          from_dataset <- dataset_names[i]
+          to_dataset <- dataset_names[j]
+
+          # Check if there's a direct connection
+          direct_connection <- FALSE
+          for (rel_name in names(structure$relationships)) {
+            rel <- structure$relationships[[rel_name]]
+            if ((rel$source == from_dataset && rel$target == to_dataset) ||
+                (rel$source == to_dataset && rel$target == from_dataset)) {
+              direct_connection <- TRUE
+              break
+            }
+          }
+
+          # If no direct connection, find a path
+          if (!direct_connection) {
+            # Find all simple paths between these datasets
+            paths <- igraph::all_simple_paths(
+              full_graph,
+              from = from_dataset,
+              to = to_dataset,
+              mode = "all",
+              cutoff = max_path_length
+            )
+
+            if (length(paths) > 0) {
+              # Get the shortest path
+              shortest_path <- paths[[1]]
+              for (p in paths) {
+                if (length(p) < length(shortest_path)) {
+                  shortest_path <- p
+                }
+              }
+
+              # Add all datasets in the path to datasets_to_include
+              path_datasets <- igraph::V(full_graph)$name[shortest_path]
+              datasets_to_include <- unique(c(datasets_to_include, path_datasets))
+
+              # Store path information
+              connection_paths[[length(connection_paths) + 1]] <- list(
+                from = from_dataset,
+                to = to_dataset,
+                path = path_datasets
+              )
+            } else {
+              warning("No connection path found between ", from_dataset, " and ", to_dataset,
+                      " with maximum path length ", max_path_length)
+            }
+          }
+        }
+      }
+    }
+
+    # Add all relevant datasets as vertices
+    for (dataset in datasets_to_include) {
+      g <- igraph::add_vertices(g, 1, name = dataset)
+    }
+
+    # Add highlight property to vertices
+    igraph::V(g)$highlight <- igraph::V(g)$name %in% highlight_datasets
+
+    # Add special property for datasets that were in the original selection
+    igraph::V(g)$original <- igraph::V(g)$name %in% dataset_names
+
+    # Add edges for direct connections and connection paths
+    edge_labels <- character(0)
+    edge_colors <- character(0)
+    edge_widths <- numeric(0)
+    edge_types <- character(0)  # To track if an edge is part of a path
+
+    # Add direct connections
+    for (rel_name in names(structure$relationships)) {
+      rel <- structure$relationships[[rel_name]]
+
+      # Only add edges between datasets we're including
+      if (rel$source %in% datasets_to_include && rel$target %in% datasets_to_include) {
+
+        # Skip relations with insufficient confidence
+        if ((min_confidence == "high" && rel$confidence != "high")) {
+          next
+        }
+
+        # Add an edge
+        g <- igraph::add_edges(g, c(rel$source, rel$target))
+
+        # Get the joining field(s) for the edge label
+        if (length(rel$exact_matches) > 0) {
+          join_fields <- rel$exact_matches
+        } else if (length(rel$relation_matches) > 0) {
+          join_fields <- sapply(rel$relation_matches, function(x) x$rel_field)
+        } else if (length(rel$similar_matches) > 0) {
+          join_fields <- sapply(rel$similar_matches, function(x) paste(x$source_field, "=", x$target_field))
+        } else {
+          join_fields <- "Unknown connection"
+        }
+
+        edge_id <- igraph::ecount(g)
+        edge_labels[edge_id] <- paste(join_fields, collapse = "\n")
+
+        # Assign color and width based on confidence
+        edge_colors[edge_id] <- ifelse(rel$confidence == "high", "green", "orange")
+        edge_widths[edge_id] <- ifelse(rel$confidence == "high", 3, 2)
+
+        # Direct connection
+        edge_types[edge_id] <- "direct"
+      }
+    }
+
+    # Set edge attributes if there are any edges
+    if (igraph::ecount(g) > 0) {
+      igraph::E(g)$label <- edge_labels
+      igraph::E(g)$color <- edge_colors
+      igraph::E(g)$width <- edge_widths
+      igraph::E(g)$type <- edge_types
+    } else {
+      warning("No connections found between the specified datasets with the given confidence level")
+    }
 
     # Set vertex attributes
     igraph::V(g)$label <- igraph::V(g)$name
-    igraph::V(g)$color <- ifelse(igraph::V(g)$highlight, "yellow", "lightblue")
+    igraph::V(g)$color <- ifelse(igraph::V(g)$highlight, "yellow",
+                                 ifelse(igraph::V(g)$original, "lightblue", "lightgrey"))
 
+    # Create visualization
     # Create visualization
     if (interactive) {
       # Create interactive visualization with visNetwork
@@ -760,387 +568,303 @@ rio_visualize_dataset_connections <- function(..., structure = NULL, min_confide
           id = igraph::V(g)$name,
           label = igraph::V(g)$name,
           title = igraph::V(g)$name,  # Tooltip
-          color = ifelse(igraph::V(g)$highlight, "yellow", "lightblue"),
+          color = igraph::V(g)$color,
+          borderWidth = ifelse(igraph::V(g)$original, 3, 1),
+          font = list(color = "black"),
+          shape = "dot",
+          size = 20,  # Larger nodes
           stringsAsFactors = FALSE
         )
 
-        edges <- data.frame(
-          from = igraph::get.edgelist(g)[, 1],
-          to = igraph::get.edgelist(g)[, 2],
-          label = igraph::E(g)$label,
-          color = igraph::E(g)$color,
-          width = igraph::E(g)$width,
-          title = igraph::E(g)$label,  # Tooltip
-          stringsAsFactors = FALSE
-        )
+        if (igraph::ecount(g) > 0) {
+          edges <- data.frame(
+            from = igraph::get.edgelist(g)[, 1],
+            to = igraph::get.edgelist(g)[, 2],
+            label = igraph::E(g)$label,
+            color = igraph::E(g)$color,
+            width = igraph::E(g)$width,
+            title = igraph::E(g)$label,  # Tooltip
+            font = list(color = "red", size = 12),  # Red text for connection fields
+            length = 250,  # Longer edges for more space
+            arrows = "to",
+            smooth = TRUE,
+            stringsAsFactors = FALSE
+          )
+        } else {
+          edges <- data.frame(
+            from = character(0),
+            to = character(0),
+            label = character(0),
+            color = character(0),
+            width = numeric(0),
+            title = character(0),
+            stringsAsFactors = FALSE
+          )
+        }
 
-        return(visNetwork::visNetwork(nodes, edges) %>%
-                 visNetwork::visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
-                 visNetwork::visLayout(randomSeed = 123))  # For consistent layout
+        # Create the network with better layout
+        net <- visNetwork::visNetwork(nodes, edges) %>%
+          visNetwork::visOptions(highlightNearest = TRUE, selectedBy = "label") %>%
+          visNetwork::visEdges(font = list(color = "red", size = 12)) %>%
+          visNetwork::visNodes(font = list(size = 14)) %>%
+          visNetwork::visLayout(randomSeed = 123) %>%  # For consistency
+          visNetwork::visPhysics(solver = "forceAtlas2Based",
+                                 forceAtlas2Based = list(gravitationalConstant = -100,
+                                                         springLength = 200,  # More space between nodes
+                                                         springConstant = 0.05),
+                                 stabilization = list(iterations = 150))
+
+        # Apply igraph layout if possible
+        if (length(nodes$id) > 1) {
+          net <- visNetwork::visIgraphLayout(net, layout = "layout_nicely",
+                                             physics = FALSE,  # Turn off physics after layout
+                                             randomSeed = 123)
+        }
+
+        return(net)
       }
     }
 
     if (!interactive) {
       # Create static visualization with igraph
-      plot(g,
-           layout = igraph::layout_with_fr(g),
-           vertex.size = 20,
-           vertex.label.color = "black",
-           vertex.label.cex = 0.8,
-           edge.label.cex = 0.7,
-           edge.curved = 0.2,
-           main = "RIO Datasets Connection Network")
+      if (igraph::ecount(g) > 0) {
+        plot(g,
+             layout = igraph::layout_with_fr(g),
+             vertex.size = 20,
+             vertex.label.color = "black",
+             vertex.label.cex = 0.8,
+             edge.label.cex = 0.7,
+             edge.curved = 0.2,
+             main = "RIO Datasets Connection Network")
 
-      # Add legend
-      legend("bottomright",
-             legend = c("High Confidence", "Medium Confidence", "Highlighted Dataset"),
-             col = c("green", "orange", "yellow"),
-             lwd = c(3, 2, 10),
-             cex = 0.8)
+        # Add legend
+        legend("bottomright",
+               legend = c("High Confidence", "Medium Confidence",
+                          "Selected Dataset", "Intermediate Dataset", "Highlighted Dataset"),
+               col = c("green", "orange", "lightblue", "lightgrey", "yellow"),
+               pch = c(NA, NA, 16, 16, 16),
+               lwd = c(3, 2, NA, NA, NA),
+               cex = 0.8)
+      } else {
+        plot.new()
+        title(main = "RIO Datasets Connection Network")
+        text(0.5, 0.5, "No connections found with the specified confidence level")
+      }
     }
   }
 }
 
-#' Automatically detect and create connections between RIO datasets
+#' Koppel meerdere RIO datasets intelligent
 #'
-#' This function analyzes the structure of RIO datasets to automatically detect
-#' possible connections between them, and can optionally join the datasets based on
-#' these connections.
+#' Deze functie koppelt meerdere RIO datasets door automatisch de meest geschikte
+#' verbindingen tussen de datasets te detecteren en te gebruiken. Het maakt gebruik van
+#' een vooraf gedetecteerde structuur van de RIO database om optimale koppelingen te bepalen.
 #'
-#' @param ... Named tibbles to analyze. Each argument should be a tibble with data from RIO.
-#' @param auto_join Logical, whether to automatically join the datasets. Default is FALSE,
-#'        which means the function will only return the suggested connections.
-#' @param reference_date Optional date to filter valid records. Default is the current date.
-#' @param prefer_codes Logical, whether to prefer using code fields over ID fields
-#'        for joining when multiple options are available. Default is TRUE.
-#' @param verbose Logical, whether to print detailed information about detected
-#'        connections. Default is TRUE.
+#' @param ... Benoemde tibbles om te koppelen. Elk argument moet een tibble zijn met data uit RIO.
+#' @param method De koppelingsmethode. Opties zijn:
+#'        - "smart" (standaard): Gebruik de gedetecteerde structuur om optimale verbindingen te vinden
+#'        - "auto": Detecteer automatisch verbindingen op basis van alleen de opgegeven datasets
+#'        - "manual": Gebruik de expliciet gespecificeerde 'by' parameter voor koppeling
+#' @param by Character vector met kolommen om op te koppelen (alleen gebruikt bij method = "manual").
+#'        Als NULL en method = "manual", wordt geprobeerd te koppelen op alle kolommen met dezelfde naam.
+#' @param reference_date Optionele datum om geldige records te filteren. Standaard is NULL (geen filtering).
+#' @param max_distance Maximale verbindingsafstand bij gebruik van method = "smart".
+#'        Standaard is 3.
+#' @param create_structure Logische waarde die aangeeft of een nieuwe structuurdetectie moet worden uitgevoerd
+#'        als er geen bestaat bij gebruik van method = "smart". Standaard is TRUE.
+#' @param suffix Suffixen om toe te voegen aan niet-by kolomnamen om ze uniek te maken in de gekoppelde tabellen.
+#' @param verbose Logische waarde die aangeeft of gedetailleerde verbindingsinformatie moet worden weergegeven.
+#'        Standaard is TRUE.
 #'
-#' @return If auto_join = FALSE, returns a list with detected connections.
-#'         If auto_join = TRUE, returns a combined tibble with data from all input tibbles.
+#' @return Een gekoppelde tibble met data uit alle input tibbles.
 #'
 #' @examples
 #' \dontrun{
-#' # Get data from different datasets
+#' # Haal data op uit verschillende datasets
 #' locations <- rio_get_locations(city = "Amsterdam")
 #' institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
 #' vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
 #'
-#' # Detect possible connections without joining
-#' connections <- rio_auto_connect(
+#' # Smart koppeling op basis van gedetecteerde structuur
+#' linked_data <- rio_link_datasets(
 #'   locations = locations,
 #'   institutions = institutions,
 #'   vestigingen = vestigingen
 #' )
 #'
-#' # Automatically join the datasets
-#' combined_data <- rio_auto_connect(
+#' # Automatisch detecteren van verbindingen zonder gebruik van gedetecteerde structuur
+#' linked_data_auto <- rio_link_datasets(
 #'   locations = locations,
 #'   institutions = institutions,
+#'   method = "auto"
+#' )
+#'
+#' # Handmatige koppeling met gespecificeerde verbindingsvelden
+#' linked_data_manual <- rio_link_datasets(
+#'   locations = locations,
 #'   vestigingen = vestigingen,
-#'   auto_join = TRUE
+#'   method = "manual",
+#'   by = c("VESTIGINGSCODE" = "ONDERWIJSLOCATIECODE")
 #' )
 #' }
 #'
 #' @export
-rio_auto_connect <- function(..., auto_join = FALSE, reference_date = NULL,
-                             prefer_codes = TRUE, verbose = TRUE) {
-  # Get the list of tibbles
+rio_link_datasets <- function(..., method = "smart", by = NULL, reference_date = NULL,
+                              max_distance = 3, create_structure = TRUE,
+                              suffix = c("_x", "_y"), verbose = TRUE) {
+  # Get the input tibbles
   tibbles <- list(...)
 
   # Check if tibbles were provided
   if (length(tibbles) < 2) {
-    stop("At least two datasets must be provided for connection detection")
+    stop("At least two datasets must be provided for linking")
   }
 
-  # Get the names of the datasets
-  dataset_names <- names(tibbles)
+  # Execute the appropriate linking method
+  if (method == "smart") {
+    # Check if we have a structure mapping file
+    mapping_exists <- file.exists(file.path(get_rio_data_dir(), "rio_structure_mapping.rds"))
 
-  # Create a data structure to store connections between datasets
-  connections <- list()
-
-  # Define common joining field patterns
-  common_id_patterns <- c(
-    # Code patterns
-    "CODE$", "CODES$",
-    # ID patterns
-    "ID$", "IDS$",
-    # Special cases
-    "^OIE_CODE$", "^BGE_CODE$", "^VESTIGINGSCODE$", "^ONDERWIJSLOCATIECODE$",
-    "^ONDERWIJSAANBIEDERID$", "^ONDERWIJSBESTUURID$", "^ONDERWIJSAANBIEDERGROEPID$",
-    "^ONDERWIJSBEGELEIDINGSAANBIEDERID$", "^OPLEIDINGSEENHEIDCODE$",
-    "^ERKENDEOPLEIDINGSCODE$", "^AANGEBODEN_OPLEIDINGCODE$", "^UNIEKE_ERKENDEOPLEIDINGSCODE$"
-  )
-
-  # Function to detect candidate joining fields
-  find_candidate_joining_fields <- function(df1, df2, name1, name2) {
-    # Get column names
-    cols1 <- colnames(df1)
-    cols2 <- colnames(df2)
-
-    # Find columns that match common patterns
-    id_cols1 <- cols1[grepl(paste(common_id_patterns, collapse = "|"), cols1)]
-    id_cols2 <- cols2[grepl(paste(common_id_patterns, collapse = "|"), cols2)]
-
-    # Find exact matches between datasets
-    exact_matches <- intersect(id_cols1, id_cols2)
-
-    # If we have exact matches, prioritize them
-    if (length(exact_matches) > 0) {
-      return(list(
-        dataset1 = name1,
-        dataset2 = name2,
-        join_fields = exact_matches,
-        confidence = "high"
-      ))
+    if (!mapping_exists && !create_structure) {
+      stop("No RIO structure found and create_structure = FALSE. ",
+           "Run rio_detect_structure() first or set create_structure = TRUE.")
     }
 
-    # Look for similar fields (e.g., CODE in one dataset might match XXX_CODE in another)
-    potential_matches <- list()
-    for (col1 in id_cols1) {
-      for (col2 in id_cols2) {
-        # Extract the base part of the field name (removing prefixes)
-        base1 <- sub("^.*_", "", col1)
-        base2 <- sub("^.*_", "", col2)
-
-        if (base1 == base2) {
-          # Check if the data types are compatible
-          type1 <- class(df1[[col1]])[1]
-          type2 <- class(df2[[col2]])[1]
-
-          compatible <- (type1 == type2) ||
-            (type1 %in% c("character", "factor") && type2 %in% c("character", "factor")) ||
-            (type1 %in% c("numeric", "integer") && type2 %in% c("numeric", "integer"))
-
-          if (compatible) {
-            potential_matches <- c(potential_matches, list(list(
-              field1 = col1,
-              field2 = col2,
-              confidence = "medium"
-            )))
-          }
-        }
-      }
-    }
-
-    # Check for relational tables (tables with names starting with "relaties_")
-    is_relation_table <- function(name) {
-      grepl("^relaties_", name, ignore.case = TRUE)
-    }
-
-    # If one of the tables is a relation table, handle it specially
-    if (is_relation_table(name1) || is_relation_table(name2)) {
-      # Determine which is the relation table
-      rel_name <- if (is_relation_table(name1)) name1 else name2
-      other_name <- if (is_relation_table(name1)) name2 else name1
-      rel_df <- if (is_relation_table(name1)) df1 else df2
-      other_df <- if (is_relation_table(name1)) df2 else df1
-
-      # Get the potential linking fields by analyzing the relation table name
-      # Example: relaties_onderwijsbesturen_onderwijsaanbieders would link to
-      # onderwijsbesturen via ONDERWIJSBESTUURID and to onderwijsaanbieders via ONDERWIJSAANBIEDERID
-      rel_parts <- strsplit(rel_name, "_")[[1]]
-      rel_parts <- rel_parts[rel_parts != "relaties"]
-
-      for (part in rel_parts) {
-        # Try to find a corresponding ID field in both tables
-        potential_id_field <- paste0(toupper(part), "ID")
-        potential_code_field <- paste0(toupper(part), "CODE")
-
-        if (potential_id_field %in% colnames(rel_df) &&
-            potential_id_field %in% colnames(other_df)) {
-          return(list(
-            dataset1 = rel_name,
-            dataset2 = other_name,
-            join_fields = potential_id_field,
-            confidence = "high"
-          ))
-        } else if (potential_code_field %in% colnames(rel_df) &&
-                   potential_code_field %in% colnames(other_df)) {
-          return(list(
-            dataset1 = rel_name,
-            dataset2 = other_name,
-            join_fields = potential_code_field,
-            confidence = "high"
-          ))
-        }
-      }
-    }
-
-    # If we have potential matches, return them
-    if (length(potential_matches) > 0) {
-      # Sort potential matches by confidence
-      potential_matches <- potential_matches[order(sapply(potential_matches, function(x) x$confidence), decreasing = TRUE)]
-
-      return(list(
-        dataset1 = name1,
-        dataset2 = name2,
-        join_fields = potential_matches,
-        confidence = "medium"
-      ))
-    }
-
-    # If no matches were found, return an empty result
-    return(list(
-      dataset1 = name1,
-      dataset2 = name2,
-      join_fields = character(0),
-      confidence = "low"
+    # Use smart combination based on the gedetecteerde structure
+    return(rio_combine_smart(
+      ...,
+      auto_detect = create_structure,
+      max_path_length = max_distance,
+      reference_date = reference_date,
+      verbose = verbose
     ))
-  }
-
-  # Detect connections between all pairs of datasets
-  for (i in 1:(length(tibbles) - 1)) {
-    for (j in (i + 1):length(tibbles)) {
-      # Get dataset names
-      name_i <- dataset_names[i]
-      name_j <- dataset_names[j]
-
-      # Find candidate joining fields
-      connection <- find_candidate_joining_fields(
-        tibbles[[i]], tibbles[[j]], name_i, name_j
-      )
-
-      # Store the connection
-      connections[[paste(name_i, "to", name_j)]] <- connection
-
-      # Print information if verbose
-      if (verbose && length(connection$join_fields) > 0) {
-        if (connection$confidence == "high") {
-          cat(sprintf("Found high-confidence connection between '%s' and '%s' using field(s): %s\n",
-                      name_i, name_j, paste(connection$join_fields, collapse = ", ")))
-        } else if (connection$confidence == "medium") {
-          cat(sprintf("Found potential connection between '%s' and '%s':\n", name_i, name_j))
-          for (match in connection$join_fields) {
-            cat(sprintf("  - %s.%s to %s.%s (confidence: %s)\n",
-                        name_i, match$field1, name_j, match$field2, match$confidence))
-          }
-        }
-      }
-    }
-  }
-
-  # If auto_join is TRUE, try to automatically join the datasets
-  if (auto_join) {
+  } else if (method == "auto") {
+    # Use automatic detection based on the provided datasets only
     if (verbose) {
-      cat("\nAttempting to automatically join datasets...\n")
+      message("Using automatic connection detection for the provided datasets")
     }
 
-    # Create a graph of dataset connections
-    library(igraph)
-
-    # Create a graph with datasets as nodes
-    g <- make_graph(character(0), directed = FALSE)
-    g <- add_vertices(g, length(dataset_names), name = dataset_names)
-
-    # Add edges for high-confidence connections
-    for (conn_name in names(connections)) {
-      conn <- connections[[conn_name]]
-      if (conn$confidence == "high" && length(conn$join_fields) > 0) {
-        g <- add_edges(g, c(conn$dataset1, conn$dataset2))
-      }
+    return(rio_auto_connect(
+      ...,
+      auto_join = TRUE,
+      reference_date = reference_date,
+      verbose = verbose
+    ))
+  } else if (method == "manual") {
+    # Use manual joining by specified fields
+    if (verbose) {
+      message("Using manual connection with specified 'by' parameter")
     }
 
-    # Find a minimum spanning tree to determine joining order
-    if (ecount(g) > 0) {
-      mst <- minimum.spanning.tree(g)
+    # Manual joining logic - implementation that replaces rio_combine()
+    # Start with the first tibble
+    result <- tibbles[[1]]
+    dataset_names <- names(tibbles)
 
-      # Create a joining plan
-      joining_plan <- list()
-      for (edge_idx in 1:ecount(mst)) {
-        edge <- ends(mst, edge_idx)
-        ds1 <- V(mst)$name[edge[1]]
-        ds2 <- V(mst)$name[edge[2]]
-
-        # Find the connection for this edge
-        conn_key1 <- paste(ds1, "to", ds2)
-        conn_key2 <- paste(ds2, "to", ds1)
-        conn <- if (conn_key1 %in% names(connections)) connections[[conn_key1]] else connections[[conn_key2]]
-
-        joining_plan[[length(joining_plan) + 1]] <- list(
-          left = ds1,
-          right = ds2,
-          by = if (is.character(conn$join_fields)) conn$join_fields else conn$join_fields[[1]]$field1
-        )
+    # Join with each of the remaining tibbles
+    for (i in 2:length(tibbles)) {
+      if (verbose) {
+        cli::cli_alert_info("Joining '{dataset_names[i]}' using manually specified fields")
       }
-
-      # Execute the joining plan
-      result <- tibbles[[1]]
-      current_dataset <- dataset_names[1]
-
-      # Keep track of datasets that have been joined
-      joined_datasets <- current_dataset
-
-      while (length(joined_datasets) < length(dataset_names)) {
-        # Find a plan that connects to the current joined set
-        next_plan <- NULL
-        for (plan in joining_plan) {
-          if ((plan$left %in% joined_datasets && !(plan$right %in% joined_datasets)) ||
-              (plan$right %in% joined_datasets && !(plan$left %in% joined_datasets))) {
-            next_plan <- plan
-            break
-          }
-        }
-
-        if (is.null(next_plan)) {
-          if (verbose) {
-            cat("Warning: Could not find a complete joining plan. Some datasets may not be connected.\n")
-          }
-          break
-        }
-
-        # Determine which dataset to join next
-        next_dataset <- if (next_plan$left %in% joined_datasets) next_plan$right else next_plan$left
-
-        # Join the datasets
-        by_field <- next_plan$by
-
-        if (verbose) {
-          cat(sprintf("Joining '%s' to result using field '%s'\n", next_dataset, by_field))
-        }
-
-        result <- dplyr::left_join(result, tibbles[[next_dataset]], by = by_field)
-
-        # Mark the dataset as joined
-        joined_datasets <- c(joined_datasets, next_dataset)
-      }
-
-      return(result)
-    } else {
-      warning("Could not find high-confidence connections for automatic joining")
-      return(connections)
+      result <- dplyr::left_join(result, tibbles[[i]], by = by, suffix = suffix)
     }
+
+    # Apply reference date filtering if required
+    if (!is.null(reference_date)) {
+      if (verbose) {
+        cli::cli_alert_info("Filtering by reference date: {reference_date}")
+      }
+      # Filter the result
+      result <- rio_filter_by_reference_date(result, reference_date)
+    }
+
+    return(result)
   } else {
-    # Just return the detected connections
-    return(connections)
+    stop("Invalid method: ", method, ". Use 'smart', 'auto', or 'manual'.")
   }
 }
 
-#' Find connection paths between RIO datasets
+#' Intelligente koppeling van datasets op basis van gedetecteerde structuur
 #'
-#' This function finds all possible connection paths between specified datasets
-#' using the stored RIO structure mapping.
+#' @param ... Benoemde tibbles om te koppelen
+#' @param auto_detect Logische waarde die aangeeft of automatisch een structuur moet worden gedetecteerd als er geen bestaat
+#' @param max_path_length Maximale padlengte tussen datasets
+#' @param reference_date Optionele datum om geldige records te filteren
+#' @param verbose Logische waarde die aangeeft of gedetailleerde informatie moet worden weergegeven
 #'
-#' @param ... Named or unnamed character strings of dataset names to connect.
-#' @param structure The RIO structure mapping as returned by rio_load_structure().
-#'        If NULL, it will be loaded automatically.
-#' @param max_path_length Maximum length of connection paths to consider. Default is 3.
-#' @param min_confidence Minimum confidence level for connections. Can be "high" or "medium".
-#'        Default is "medium".
+#' @return Een gekoppelde tibble
 #'
-#' @return A list of possible connection paths between the datasets.
+#' @keywords internal
+rio_combine_smart <- function(..., auto_detect = TRUE, max_path_length = 3,
+                              reference_date = NULL, verbose = TRUE) {
+  # Get the input tibbles
+  tibbles <- list(...)
+
+  # Load the structure
+  structure <- rio_load_structure(auto_detect = auto_detect)
+
+  # Get the names of the provided datasets
+  dataset_names <- names(tibbles)
+
+  # Find all possible paths between the datasets
+  all_paths <- list()
+  for (i in 1:(length(dataset_names) - 1)) {
+    for (j in (i + 1):length(dataset_names)) {
+      # Find paths between these two datasets
+      paths <- rio_find_connection_paths(
+        dataset_names[i], dataset_names[j],
+        structure = structure,
+        max_path_length = max_path_length
+      )
+
+      # Add to all paths
+      all_paths <- c(all_paths, paths)
+    }
+  }
+
+  # If no paths were found, return an error
+  if (length(all_paths) == 0) {
+    stop("Could not find connection paths between the specified datasets")
+  }
+
+  # Find the best path to connect all datasets
+  best_path <- find_best_connection_path(all_paths)
+
+  if (verbose) {
+    cli::cli_alert_info("Using connection path: {paste(best_path$path, collapse = ' -> ')}")
+  }
+
+  # Execute the joins based on the best path
+  result <- execute_dataset_joins(tibbles, best_path, verbose, reference_date)
+
+  return(result)
+}
+
+#' Vind verbindingspaden tussen RIO datasets
+#'
+#' Deze functie vindt alle mogelijke verbindingspaden tussen opgegeven datasets
+#' met behulp van de opgeslagen RIO structuur.
+#'
+#' @param ... Benoemde of onbenoemde character strings met datasetnamen om te verbinden.
+#' @param structure De RIO structuur zoals geretourneerd door rio_load_structure().
+#'        Als NULL, wordt deze automatisch geladen.
+#' @param max_path_length Maximale lengte van verbindingspaden om te overwegen. Standaard is 3.
+#' @param min_confidence Minimaal betrouwbaarheidsniveau voor verbindingen. Kan "high" of "medium" zijn.
+#'        Standaard is "medium".
+#'
+#' @return Een lijst met mogelijke verbindingspaden tussen de datasets.
 #'
 #' @examples
 #' \dontrun{
-#' # Find connection paths between three datasets
+#' # Vind verbindingspaden tussen drie datasets
 #' paths <- rio_find_connection_paths("onderwijslocaties", "vestigingserkenningen", "onderwijsaanbieders")
 #' }
 #'
-#' @export
+#' @keywords internal
 rio_find_connection_paths <- function(..., structure = NULL, max_path_length = 3, min_confidence = "medium") {
   # Load structure if not provided
   if (is.null(structure)) {
-    structure <- rio_load_structure(auto_create = TRUE)
+    structure <- rio_load_structure(auto_detect = TRUE)
   }
 
   # Get dataset names
@@ -1242,153 +966,173 @@ rio_find_connection_paths <- function(..., structure = NULL, max_path_length = 3
   return(paths)
 }
 
-#' Find candidate joining fields between two datasets
+#' Visualiseer gedetecteerde verbindingen tussen datasets
 #'
-#' @param df1 First dataframe or tibble
-#' @param df2 Second dataframe or tibble
-#' @param name1 Name of the first dataset
-#' @param name2 Name of the second dataset
+#' @param connections Een lijst met verbindingen zoals geretourneerd door rio_auto_connect()
+#' @param min_confidence Minimaal betrouwbaarheidsniveau voor verbindingen
+#' @param interactive Logische waarde die aangeeft of een interactieve visualisatie moet worden gemaakt
 #'
-#' @return A list with details about the potential connection
+#' @return Een visualisatie-object
 #'
 #' @keywords internal
-find_candidate_joining_fields <- function(df1, df2, name1, name2) {
-  # Define common joining field patterns
-  common_id_patterns <- c(
-    # Code patterns
-    "CODE$", "CODES$",
-    # ID patterns
-    "ID$", "IDS$",
-    # Special cases
-    "^OIE_CODE$", "^BGE_CODE$", "^VESTIGINGSCODE$", "^ONDERWIJSLOCATIECODE$",
-    "^ONDERWIJSAANBIEDERID$", "^ONDERWIJSBESTUURID$", "^ONDERWIJSAANBIEDERGROEPID$",
-    "^ONDERWIJSBEGELEIDINGSAANBIEDERID$", "^OPLEIDINGSEENHEIDCODE$",
-    "^ERKENDEOPLEIDINGSCODE$", "^AANGEBODEN_OPLEIDINGCODE$", "^UNIEKE_ERKENDEOPLEIDINGSCODE$"
-  )
+rio_visualize_connections <- function(connections, min_confidence = "medium", interactive = TRUE) {
+  # Create a graph
+  g <- igraph::make_graph(directed = FALSE)
 
-  # Get column names
-  cols1 <- colnames(df1)
-  cols2 <- colnames(df2)
+  # Extract unique dataset names from connections
+  all_datasets <- unique(unlist(lapply(connections, function(conn) {
+    c(conn$dataset1, conn$dataset2)
+  })))
 
-  # Find columns that match common patterns
-  id_cols1 <- cols1[grepl(paste(common_id_patterns, collapse = "|"), cols1)]
-  id_cols2 <- cols2[grepl(paste(common_id_patterns, collapse = "|"), cols2)]
+  # Add vertices
+  g <- igraph::add_vertices(g, length(all_datasets), name = all_datasets)
 
-  # Find exact matches between datasets
-  exact_matches <- intersect(id_cols1, id_cols2)
+  # Add edges based on connections
+  edge_labels <- character(0)
+  edge_colors <- character(0)
+  edge_widths <- numeric(0)
 
-  # If we have exact matches, prioritize them
-  if (length(exact_matches) > 0) {
-    return(list(
-      dataset1 = name1,
-      dataset2 = name2,
-      join_fields = exact_matches,
-      confidence = "high"
-    ))
-  }
+  for (conn_name in names(connections)) {
+    conn <- connections[[conn_name]]
 
-  # Look for similar fields (e.g., CODE in one dataset might match XXX_CODE in another)
-  potential_matches <- list()
-  for (col1 in id_cols1) {
-    for (col2 in id_cols2) {
-      # Extract the base part of the field name (removing prefixes)
-      base1 <- sub("^.*_", "", col1)
-      base2 <- sub("^.*_", "", col2)
+    # Skip low confidence connections if min_confidence is higher
+    if (min_confidence == "high" && conn$confidence != "high") {
+      next
+    }
 
-      if (base1 == base2) {
-        # Check if the data types are compatible
-        type1 <- class(df1[[col1]])[1]
-        type2 <- class(df2[[col2]])[1]
+    # Add edge
+    g <- igraph::add_edges(g, c(conn$dataset1, conn$dataset2))
 
-        compatible <- (type1 == type2) ||
-          (type1 %in% c("character", "factor") && type2 %in% c("character", "factor")) ||
-          (type1 %in% c("numeric", "integer") && type2 %in% c("numeric", "integer"))
-
-        if (compatible) {
-          potential_matches <- c(potential_matches, list(list(
-            field1 = col1,
-            field2 = col2,
-            confidence = "medium"
-          )))
+    # Create edge label
+    if (is.character(conn$join_fields)) {
+      label <- paste(conn$join_fields, collapse = "\n")
+    } else if (length(conn$join_fields) > 0) {
+      # For complex join fields (source and target field might be different)
+      label_parts <- sapply(conn$join_fields, function(field) {
+        if (is.list(field)) {
+          paste(field$field1, "=", field$field2)
+        } else {
+          field
         }
-      }
+      })
+      label <- paste(label_parts, collapse = "\n")
+    } else {
+      label <- "Unknown"
+    }
+
+    edge_id <- igraph::ecount(g)
+    edge_labels[edge_id] <- label
+
+    # Set color and width based on confidence
+    edge_colors[edge_id] <- ifelse(conn$confidence == "high", "green", "orange")
+    edge_widths[edge_id] <- ifelse(conn$confidence == "high", 3, 2)
+  }
+
+  # Set edge attributes
+  igraph::E(g)$label <- edge_labels
+  igraph::E(g)$color <- edge_colors
+  igraph::E(g)$width <- edge_widths
+
+  # Set vertex attributes
+  igraph::V(g)$label <- igraph::V(g)$name
+  igraph::V(g)$color <- "lightblue"
+
+  # Create visualization
+  if (interactive) {
+    # Interactive visualization with visNetwork
+    if (!requireNamespace("visNetwork", quietly = TRUE)) {
+      warning("Package 'visNetwork' is required for interactive visualization. Using static visualization instead.")
+      interactive <- FALSE
+    } else {
+      nodes <- data.frame(
+        id = igraph::V(g)$name,
+        label = igraph::V(g)$name,
+        title = igraph::V(g)$name,  # Tooltip
+        color = "lightblue",
+        stringsAsFactors = FALSE
+      )
+
+      edges <- data.frame(
+        from = igraph::get.edgelist(g)[, 1],
+        to = igraph::get.edgelist(g)[, 2],
+        label = igraph::E(g)$label,
+        color = igraph::E(g)$color,
+        width = igraph::E(g)$width,
+        title = igraph::E(g)$label,  # Tooltip
+        stringsAsFactors = FALSE
+      )
+
+      return(visNetwork::visNetwork(nodes, edges) %>%
+               visNetwork::visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
+               visNetwork::visLayout(randomSeed = 123))
     }
   }
 
-  # Check for relational tables (tables with names starting with "relaties_")
-  is_relation_table <- function(name) {
-    grepl("^relaties_", name, ignore.case = TRUE)
+  if (!interactive) {
+    # Static visualization with igraph
+    plot(g,
+         layout = igraph::layout_with_fr(g),
+         vertex.size = 20,
+         vertex.label.color = "black",
+         vertex.label.cex = 0.8,
+         edge.label.cex = 0.7,
+         edge.curved = 0.2,
+         main = "Dataset Connections")
+
+    # Add legend
+    legend("bottomright",
+           legend = c("High Confidence", "Medium Confidence"),
+           col = c("green", "orange"),
+           lwd = c(3, 2),
+           cex = 0.8)
   }
-
-  # If one of the tables is a relation table, handle it specially
-  if (is_relation_table(name1) || is_relation_table(name2)) {
-    # Determine which is the relation table
-    rel_name <- if (is_relation_table(name1)) name1 else name2
-    other_name <- if (is_relation_table(name1)) name2 else name1
-    rel_df <- if (is_relation_table(name1)) df1 else df2
-    other_df <- if (is_relation_table(name1)) df2 else df1
-
-    # Get the potential linking fields by analyzing the relation table name
-    # Example: relaties_onderwijsbesturen_onderwijsaanbieders would link to
-    # onderwijsbesturen via ONDERWIJSBESTUURID and to onderwijsaanbieders via ONDERWIJSAANBIEDERID
-    rel_parts <- strsplit(rel_name, "_")[[1]]
-    rel_parts <- rel_parts[rel_parts != "relaties"]
-
-    for (part in rel_parts) {
-      # Try to find a corresponding ID field in both tables
-      potential_id_field <- paste0(toupper(part), "ID")
-      potential_code_field <- paste0(toupper(part), "CODE")
-
-      if (potential_id_field %in% colnames(rel_df) &&
-          potential_id_field %in% colnames(other_df)) {
-        return(list(
-          dataset1 = rel_name,
-          dataset2 = other_name,
-          join_fields = potential_id_field,
-          confidence = "high"
-        ))
-      } else if (potential_code_field %in% colnames(rel_df) &&
-                 potential_code_field %in% colnames(other_df)) {
-        return(list(
-          dataset1 = rel_name,
-          dataset2 = other_name,
-          join_fields = potential_code_field,
-          confidence = "high"
-        ))
-      }
-    }
-  }
-
-  # If we have potential matches, return them
-  if (length(potential_matches) > 0) {
-    # Sort potential matches by confidence
-    potential_matches <- potential_matches[order(sapply(potential_matches, function(x) x$confidence), decreasing = TRUE)]
-
-    return(list(
-      dataset1 = name1,
-      dataset2 = name2,
-      join_fields = potential_matches,
-      confidence = "medium"
-    ))
-  }
-
-  # If no matches were found, return an empty result
-  return(list(
-    dataset1 = name1,
-    dataset2 = name2,
-    join_fields = character(0),
-    confidence = "low"
-  ))
 }
 
-#' Execute joins to combine datasets based on a connection path
+#' Vind het beste verbindingspad uit een lijst met paden
 #'
-#' @param tibbles List of tibbles to combine
-#' @param path Connection path specifying how to join the tibbles
-#' @param verbose Logical indicating whether to show detailed connection information
-#' @param reference_date Optional date to filter valid records
+#' @param paths Een lijst met verbindingspaden zoals geretourneerd door rio_find_connection_paths()
 #'
-#' @return A combined tibble
+#' @return Het beste verbindingspad op basis van lengte en betrouwbaarheid
+#'
+#' @keywords internal
+find_best_connection_path <- function(paths) {
+  if (length(paths) == 1) {
+    return(paths[[1]])
+  }
+
+  # Score confidence levels
+  confidence_scores <- c(high = 3, medium = 2, low = 1)
+
+  # Calculate a score for each path
+  path_scores <- numeric(length(paths))
+  for (i in seq_along(paths)) {
+    path <- paths[[i]]
+
+    # Penalize for path length
+    length_penalty <- length(path$path) - 1
+
+    # Reward for high confidence connections
+    confidence_sum <- 0
+    for (conn in path$connections) {
+      confidence_sum <- confidence_sum + confidence_scores[conn$relationship$confidence]
+    }
+
+    # Calculate final score (higher is better)
+    path_scores[i] <- confidence_sum - length_penalty * 2
+  }
+
+  # Return the path with the highest score
+  return(paths[[which.max(path_scores)]])
+}
+
+#' Voer joins uit om datasets te combineren op basis van een verbindingspad
+#'
+#' @param tibbles Lijst met tibbles om te combineren
+#' @param path Verbindingspad dat specificeert hoe de tibbles moeten worden gekoppeld
+#' @param verbose Logische waarde die aangeeft of gedetailleerde verbindingsinformatie moet worden weergegeven
+#' @param reference_date Optionele datum om geldige records te filteren
+#'
+#' @return Een gecombineerde tibble
 #'
 #' @keywords internal
 execute_dataset_joins <- function(tibbles, path, verbose, reference_date) {
@@ -1469,48 +1213,11 @@ execute_dataset_joins <- function(tibbles, path, verbose, reference_date) {
   return(result)
 }
 
-#' Find the best connection path from a list of paths
+#' Vind datumvelden in een dataframe
 #'
-#' @param paths A list of connection paths as returned by rio_find_connection_paths()
+#' @param df Een dataframe
 #'
-#' @return The best connection path based on length and confidence
-#'
-#' @keywords internal
-find_best_connection_path <- function(paths) {
-  if (length(paths) == 1) {
-    return(paths[[1]])
-  }
-
-  # Score confidence levels
-  confidence_scores <- c(high = 3, medium = 2, low = 1)
-
-  # Calculate a score for each path
-  path_scores <- numeric(length(paths))
-  for (i in seq_along(paths)) {
-    path <- paths[[i]]
-
-    # Penalize for path length
-    length_penalty <- length(path$path) - 1
-
-    # Reward for high confidence connections
-    confidence_sum <- 0
-    for (conn in path$connections) {
-      confidence_sum <- confidence_sum + confidence_scores[conn$relationship$confidence]
-    }
-
-    # Calculate final score (higher is better)
-    path_scores[i] <- confidence_sum - length_penalty * 2
-  }
-
-  # Return the path with the highest score
-  return(paths[[which.max(path_scores)]])
-}
-
-#' Find date fields in a dataframe
-#'
-#' @param df A dataframe
-#'
-#' @return A character vector of date field names
+#' @return Een character vector met namen van datumvelden
 #'
 #' @keywords internal
 find_date_fields <- function(df) {
@@ -1530,10 +1237,9 @@ find_date_fields <- function(df) {
   return(unique(date_fields))
 }
 
-
-#' Get the directory for saving RIO package data
+#' Verkrijg de directory voor het opslaan van RIO package data
 #'
-#' @return A character string with the path to the RIO data directory
+#' @return Een character string met het pad naar de RIO data directory
 #'
 #' @keywords internal
 get_rio_data_dir <- function() {

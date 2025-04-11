@@ -2,7 +2,7 @@
 % Please edit documentation in R/combine_data.R
 \name{rio_link_datasets}
 \alias{rio_link_datasets}
-\title{Intelligently link multiple RIO datasets}
+\title{Koppel meerdere RIO datasets intelligent}
 \usage{
 rio_link_datasets(
   ...,
@@ -10,65 +10,65 @@ rio_link_datasets(
   by = NULL,
   reference_date = NULL,
   max_distance = 3,
-  create_mapping = TRUE,
+  create_structure = TRUE,
   suffix = c("_x", "_y"),
   verbose = TRUE
 )
 }
 \arguments{
-\item{...}{Named tibbles to link. Each argument should be a tibble with data from RIO.}
+\item{...}{Benoemde tibbles om te koppelen. Elk argument moet een tibble zijn met data uit RIO.}
 
-\item{method}{The linking method to use. Options are:
-- "smart" (default): Use the pre-built structure mapping to find optimal connections
-- "auto": Automatically detect connections from the provided datasets only
-- "manual": Use the explicitly specified 'by' parameter for joining}
+\item{method}{De koppelingsmethode. Opties zijn:
+- "smart" (standaard): Gebruik de gedetecteerde structuur om optimale verbindingen te vinden
+- "auto": Detecteer automatisch verbindingen op basis van alleen de opgegeven datasets
+- "manual": Gebruik de expliciet gespecificeerde 'by' parameter voor koppeling}
 
-\item{by}{Character vector of columns to join by (only used with method = "manual").
-If NULL and method = "manual", will try to join by all columns with the same name.}
+\item{by}{Character vector met kolommen om op te koppelen (alleen gebruikt bij method = "manual").
+Als NULL en method = "manual", wordt geprobeerd te koppelen op alle kolommen met dezelfde naam.}
 
-\item{reference_date}{Optional date to filter valid records. Default is NULL (no filtering).}
+\item{reference_date}{Optionele datum om geldige records te filteren. Standaard is NULL (geen filtering).}
 
-\item{max_distance}{Maximum connection distance to consider when using method = "smart".
-Default is 3.}
+\item{max_distance}{Maximale verbindingsafstand bij gebruik van method = "smart".
+Standaard is 3.}
 
-\item{create_mapping}{Logical indicating whether to create a new structure mapping
-if none exists when using method = "smart". Default is TRUE.}
+\item{create_structure}{Logische waarde die aangeeft of een nieuwe structuurdetectie moet worden uitgevoerd
+als er geen bestaat bij gebruik van method = "smart". Standaard is TRUE.}
 
-\item{suffix}{Suffixes to add to make non-by column names unique across the joined tables.}
+\item{suffix}{Suffixen om toe te voegen aan niet-by kolomnamen om ze uniek te maken in de gekoppelde tabellen.}
 
-\item{verbose}{Logical indicating whether to show detailed connection information.
-Default is TRUE.}
+\item{verbose}{Logische waarde die aangeeft of gedetailleerde verbindingsinformatie moet worden weergegeven.
+Standaard is TRUE.}
 }
 \value{
-A linked tibble with data from all input tibbles.
+Een gekoppelde tibble met data uit alle input tibbles.
 }
 \description{
-This function links multiple RIO datasets by automatically detecting and using
-the most appropriate connections between them. It leverages a pre-built structure mapping
-of the RIO database to determine optimal joining paths.
+Deze functie koppelt meerdere RIO datasets door automatisch de meest geschikte
+verbindingen tussen de datasets te detecteren en te gebruiken. Het maakt gebruik van
+een vooraf gedetecteerde structuur van de RIO database om optimale koppelingen te bepalen.
 }
 \examples{
 \dontrun{
-# Get data from different datasets
+# Haal data op uit verschillende datasets
 locations <- rio_get_locations(city = "Amsterdam")
 institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
 vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
 
-# Smart linking using pre-built structure mapping
+# Smart koppeling op basis van gedetecteerde structuur
 linked_data <- rio_link_datasets(
   locations = locations,
   institutions = institutions,
   vestigingen = vestigingen
 )
 
-# Auto-detect connections without using pre-built mapping
+# Automatisch detecteren van verbindingen zonder gebruik van gedetecteerde structuur
 linked_data_auto <- rio_link_datasets(
   locations = locations,
   institutions = institutions,
   method = "auto"
 )
 
-# Manual linking with specified joining fields
+# Handmatige koppeling met gespecificeerde verbindingsvelden
 linked_data_manual <- rio_link_datasets(
   locations = locations,
   vestigingen = vestigingen,

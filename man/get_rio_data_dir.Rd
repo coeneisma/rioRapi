@@ -2,14 +2,14 @@
 % Please edit documentation in R/combine_data.R
 \name{get_rio_data_dir}
 \alias{get_rio_data_dir}
-\title{Get the directory for saving RIO package data}
+\title{Verkrijg de directory voor het opslaan van RIO package data}
 \usage{
 get_rio_data_dir()
 }
 \value{
-A character string with the path to the RIO data directory
+Een character string met het pad naar de RIO data directory
 }
 \description{
-Get the directory for saving RIO package data
+Verkrijg de directory voor het opslaan van RIO package data
 }
 \keyword{internal}

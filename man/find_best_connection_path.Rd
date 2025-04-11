@@ -2,17 +2,17 @@
 % Please edit documentation in R/combine_data.R
 \name{find_best_connection_path}
 \alias{find_best_connection_path}
-\title{Find the best connection path from a list of paths}
+\title{Vind het beste verbindingspad uit een lijst met paden}
 \usage{
 find_best_connection_path(paths)
 }
 \arguments{
-\item{paths}{A list of connection paths as returned by rio_find_connection_paths()}
+\item{paths}{Een lijst met verbindingspaden zoals geretourneerd door rio_find_connection_paths()}
 }
 \value{
-The best connection path based on length and confidence
+Het beste verbindingspad op basis van lengte en betrouwbaarheid
 }
 \description{
-Find the best connection path from a list of paths
+Vind het beste verbindingspad uit een lijst met paden
 }
 \keyword{internal}

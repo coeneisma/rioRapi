@@ -2,7 +2,7 @@
 % Please edit documentation in R/combine_data.R
 \name{rio_find_connection_paths}
 \alias{rio_find_connection_paths}
-\title{Find connection paths between RIO datasets}
+\title{Vind verbindingspaden tussen RIO datasets}
 \usage{
 rio_find_connection_paths(
   ...,
@@ -12,27 +12,28 @@ rio_find_connection_paths(
 )
 }
 \arguments{
-\item{...}{Named or unnamed character strings of dataset names to connect.}
+\item{...}{Benoemde of onbenoemde character strings met datasetnamen om te verbinden.}
 
-\item{structure}{The RIO structure mapping as returned by rio_load_structure().
-If NULL, it will be loaded automatically.}
+\item{structure}{De RIO structuur zoals geretourneerd door rio_load_structure().
+Als NULL, wordt deze automatisch geladen.}
 
-\item{max_path_length}{Maximum length of connection paths to consider. Default is 3.}
+\item{max_path_length}{Maximale lengte van verbindingspaden om te overwegen. Standaard is 3.}
 
-\item{min_confidence}{Minimum confidence level for connections. Can be "high" or "medium".
-Default is "medium".}
+\item{min_confidence}{Minimaal betrouwbaarheidsniveau voor verbindingen. Kan "high" of "medium" zijn.
+Standaard is "medium".}
 }
 \value{
-A list of possible connection paths between the datasets.
+Een lijst met mogelijke verbindingspaden tussen de datasets.
 }
 \description{
-This function finds all possible connection paths between specified datasets
-using the stored RIO structure mapping.
+Deze functie vindt alle mogelijke verbindingspaden tussen opgegeven datasets
+met behulp van de opgeslagen RIO structuur.
 }
 \examples{
 \dontrun{
-# Find connection paths between three datasets
+# Vind verbindingspaden tussen drie datasets
 paths <- rio_find_connection_paths("onderwijslocaties", "vestigingserkenningen", "onderwijsaanbieders")
 }
 
 }
+\keyword{internal}

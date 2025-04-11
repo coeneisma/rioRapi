@@ -2,23 +2,23 @@
 % Please edit documentation in R/combine_data.R
 \name{execute_dataset_joins}
 \alias{execute_dataset_joins}
-\title{Execute joins to combine datasets based on a connection path}
+\title{Voer joins uit om datasets te combineren op basis van een verbindingspad}
 \usage{
 execute_dataset_joins(tibbles, path, verbose, reference_date)
 }
 \arguments{
-\item{tibbles}{List of tibbles to combine}
+\item{tibbles}{Lijst met tibbles om te combineren}
 
-\item{path}{Connection path specifying how to join the tibbles}
+\item{path}{Verbindingspad dat specificeert hoe de tibbles moeten worden gekoppeld}
 
-\item{verbose}{Logical indicating whether to show detailed connection information}
+\item{verbose}{Logische waarde die aangeeft of gedetailleerde verbindingsinformatie moet worden weergegeven}
 
-\item{reference_date}{Optional date to filter valid records}
+\item{reference_date}{Optionele datum om geldige records te filteren}
 }
 \value{
-A combined tibble
+Een gecombineerde tibble
 }
 \description{
-Execute joins to combine datasets based on a connection path
+Voer joins uit om datasets te combineren op basis van een verbindingspad
 }
 \keyword{internal}

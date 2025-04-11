@@ -2,30 +2,31 @@
 % Please edit documentation in R/combine_data.R
 \name{rio_load_structure}
 \alias{rio_load_structure}
-\title{Load the RIO structure mapping}
+\title{Laad de gedetecteerde RIO structuur}
 \usage{
-rio_load_structure(auto_create = TRUE, days_threshold = 28, quiet = FALSE)
+rio_load_structure(auto_detect = TRUE, days_threshold = 28, quiet = FALSE)
 }
 \arguments{
-\item{auto_create}{Logical indicating whether to automatically create a mapping if
-none exists or if it's outdated. Default is TRUE.}
+\item{auto_detect}{Logische waarde die aangeeft of automatisch een nieuwe structuurdetectie
+moet worden uitgevoerd als er geen bestaat of als deze verouderd is. Standaard is TRUE.}
 
-\item{days_threshold}{Number of days after which a mapping is considered outdated.
-Default is 28 (4 weeks).}
+\item{days_threshold}{Aantal dagen waarna een structuurdetectie als verouderd wordt beschouwd.
+Standaard is 28 (4 weken).}
 
-\item{quiet}{Logical indicating whether to suppress progress messages. Default is FALSE.}
+\item{quiet}{Logische waarde die aangeeft of voortgangsberichten onderdrukt moeten worden. Standaard is FALSE.}
 }
 \value{
-A list containing the RIO structure mapping.
+Een lijst met de gedetecteerde RIO structuur.
 }
 \description{
-This function loads the saved RIO structure mapping. If no mapping exists or it's
-outdated, it will optionally create a new one.
+Deze functie laadt de opgeslagen RIO structuur. Als er geen structuur bestaat of deze
+verouderd is, kan optioneel een nieuwe detectie worden uitgevoerd.
 }
 \examples{
 \dontrun{
-# Load the RIO structure mapping
-mapping <- rio_load_structure()
+# Laad de RIO structuur
+structure <- rio_load_structure()
 }
 
 }
+\keyword{internal}

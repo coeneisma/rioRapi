@@ -2,17 +2,17 @@
 % Please edit documentation in R/combine_data.R
 \name{find_date_fields}
 \alias{find_date_fields}
-\title{Find date fields in a dataframe}
+\title{Vind datumvelden in een dataframe}
 \usage{
 find_date_fields(df)
 }
 \arguments{
-\item{df}{A dataframe}
+\item{df}{Een dataframe}
 }
 \value{
-A character vector of date field names
+Een character vector met namen van datumvelden
 }
 \description{
-Find date fields in a dataframe
+Vind datumvelden in een dataframe
 }
 \keyword{internal}
