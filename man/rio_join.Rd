@@ -9,6 +9,8 @@ rio_join(
   by_names = FALSE,
   reference_date = NULL,
   nested = FALSE,
+  find_paths = FALSE,
+  max_path_length = 3,
   visualize = FALSE,
   quiet = FALSE
 )
@@ -22,6 +24,12 @@ rather than actual datasets. Default is FALSE.}
 \item{reference_date}{Optional date to filter valid records. Default is NULL (no filtering).}
 
 \item{nested}{Logical indicating whether to return a nested tibble. Default is FALSE.}
+
+\item{find_paths}{Logical indicating whether to find indirect connection paths between datasets
+that are not directly connected. Default is FALSE.}
+
+\item{max_path_length}{Maximum length of connection paths to consider when find_paths is TRUE.
+Default is 3.}
 
 \item{visualize}{Logical indicating whether to return a visualization instead of joined data.
 Default is FALSE.}
@@ -44,6 +52,10 @@ joined_data <- rio_join(vestigingen = vestigingen, locaties = locaties)
 
 # Join tables by name (easiest method)
 joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties", by_names = TRUE)
+
+# Join tables that are not directly connected
+joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
+                        by_names = TRUE, find_paths = TRUE)
 
 # Return a nested tibble
 nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties",

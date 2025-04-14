@@ -698,6 +698,10 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #'        rather than actual datasets. Default is FALSE.
 #' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
 #' @param nested Logical indicating whether to return a nested tibble. Default is FALSE.
+#' @param find_paths Logical indicating whether to find indirect connection paths between datasets
+#'        that are not directly connected. Default is FALSE.
+#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
+#'        Default is 3.
 #' @param visualize Logical indicating whether to return a visualization instead of joined data.
 #'        Default is FALSE.
 #' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
@@ -714,6 +718,10 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #' # Join tables by name (easiest method)
 #' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties", by_names = TRUE)
 #'
+#' # Join tables that are not directly connected
+#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
+#'                         by_names = TRUE, find_paths = TRUE)
+#'
 #' # Return a nested tibble
 #' nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
 #'                         by_names = TRUE, nested = TRUE)
@@ -725,7 +733,8 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #'
 #' @export
 rio_join <- function(..., by_names = FALSE, reference_date = NULL,
-                     nested = FALSE, visualize = FALSE, quiet = FALSE) {
+                     nested = FALSE, find_paths = FALSE, max_path_length = 3,
+                     visualize = FALSE, quiet = FALSE) {
   # Load relations from YAML file
   relations <- rio_load_relations()
 
@@ -735,14 +744,111 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
   if (by_names) {
     # Input is table names, load the data
     table_names <- unlist(input_args)
-    if (!quiet) {
-      cli::cli_alert_info("Loading {length(table_names)} tables")
+
+    # If we want to find indirect paths between tables
+    if (find_paths && length(table_names) > 1) {
+      if (!quiet) {
+        cli::cli_alert_info("Zoeken naar indirecte paden tussen tabellen")
+      }
+
+      # Create a graph with all defined relations
+      g <- igraph::make_empty_graph(directed = FALSE)
+
+      # Get all datasets
+      datasets <- rio_list_datasets()
+      all_tables <- datasets$table_name
+
+      # Add all tables as vertices
+      for (table in all_tables) {
+        g <- igraph::add_vertices(g, 1, name = table)
+      }
+
+      # Add all relations as edges
+      for (rel_name in names(relations$relations)) {
+        rel <- relations$relations[[rel_name]]
+        from_idx <- which(igraph::V(g)$name == rel$from)
+        to_idx <- which(igraph::V(g)$name == rel$to)
+
+        if (length(from_idx) > 0 && length(to_idx) > 0) {
+          g <- igraph::add_edges(g, c(from_idx, to_idx))
+        }
+      }
+
+      # Find the intermediate tables needed to connect all specified tables
+      all_tables_to_join <- table_names
+
+      # Check all pairs of specified tables
+      for (i in 1:(length(table_names)-1)) {
+        for (j in (i+1):length(table_names)) {
+          from_table <- table_names[i]
+          to_table <- table_names[j]
+
+          # Check if there's a direct relation between these tables
+          direct_relation_exists <- FALSE
+          for (rel_name in names(relations$relations)) {
+            rel <- relations$relations[[rel_name]]
+            if ((rel$from == from_table && rel$to == to_table) ||
+                (rel$from == to_table && rel$to == from_table)) {
+              direct_relation_exists <- TRUE
+              break
+            }
+          }
+
+          # If there's no direct relation, look for a path
+          if (!direct_relation_exists) {
+            from_idx <- which(igraph::V(g)$name == from_table)
+            to_idx <- which(igraph::V(g)$name == to_table)
+
+            if (length(from_idx) > 0 && length(to_idx) > 0) {
+              # Find the shortest path between these tables
+              all_paths <- igraph::all_simple_paths(g,
+                                                    from = from_idx,
+                                                    to = to_idx,
+                                                    mode = "all",
+                                                    cutoff = max_path_length)
+
+              if (length(all_paths) > 0) {
+                # Find the shortest path
+                shortest_path <- all_paths[[1]]
+                shortest_length <- length(shortest_path)
+
+                for (p in 2:length(all_paths)) {
+                  if (length(all_paths[[p]]) < shortest_length) {
+                    shortest_path <- all_paths[[p]]
+                    shortest_length <- length(all_paths[[p]])
+                  }
+                }
+
+                # Get the names of the tables in the path
+                path_tables <- igraph::V(g)$name[shortest_path]
+                all_tables_to_join <- unique(c(all_tables_to_join, path_tables))
+
+                if (!quiet) {
+                  cli::cli_alert_info("Pad gevonden tussen '{from_table}' en '{to_table}': {paste(path_tables, collapse = ' -> ')}")
+                }
+              } else if (!quiet) {
+                cli::cli_alert_warning("Geen pad gevonden tussen '{from_table}' en '{to_table}' binnen max_path_length {max_path_length}")
+              }
+            }
+          }
+        }
+      }
+
+      # Update the table_names with the additional intermediate tables
+      table_names <- all_tables_to_join
+
+      if (!quiet) {
+        cli::cli_alert_info("Laden van {length(table_names)} tabellen (inclusief tussenliggende tabellen)")
+      }
+    } else if (!quiet) {
+      cli::cli_alert_info("Laden van {length(table_names)} tabellen")
     }
 
+    # Load each table
     tibbles <- list()
     for (name in table_names) {
       if (!quiet) {
-        cli::cli_alert_info("Loading table: {name}")
+        cli::cli_alert_info("Laden van tabel: {name}")
       }
       tibbles[[name]] <- rio_get_data(table_name = name)
     }
@@ -902,6 +1008,183 @@ rio_join_tables <- function(..., by_names = FALSE, relations = NULL,
 
   if (verbose) {
     cli::cli_alert_success("All datasets successfully joined. Final result has {nrow(result)} rows and {ncol(result)} columns")
+  }
+
+  return(result)
+}
+
+#' Join RIO tables based on predefined relations, including indirect paths
+#'
+#' This function joins multiple RIO tables based on the relations defined in the package.
+#' It automatically detects relations between tables, including indirect relations via intermediate tables.
+#'
+#' @param ... Named tibbles to join or character vector of table names to load.
+#' @param by_names Logical indicating whether the arguments are table names
+#'        rather than actual datasets. Default is FALSE.
+#' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
+#' @param nested Logical indicating whether to return a nested tibble. Default is FALSE.
+#' @param find_paths Logical indicating whether to find indirect paths between tables.
+#'        Default is TRUE.
+#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
+#'        Default is 3.
+#' @param verbose Logical indicating whether to display progress messages. Default is FALSE.
+#'
+#' @return A joined tibble with data from all input tibbles.
+#'
+#' @export
+rio_join_with_paths <- function(..., by_names = FALSE, reference_date = NULL,
+                                nested = FALSE, find_paths = TRUE,
+                                max_path_length = 3, verbose = FALSE) {
+
+  # Laad relaties
+  relations <- rio_load_relations()
+
+  # Verwerk invoerparameters
+  input_args <- list(...)
+
+  if (by_names) {
+    # Input zijn tabelnamen, laad de data
+    table_names <- unlist(input_args)
+    if (!verbose) {
+      message("Tabellen laden: ", paste(table_names, collapse = ", "))
+    }
+
+    # Als we indirecte paden willen vinden
+    if (find_paths && length(table_names) > 1) {
+      # Zoek alle tabellen op
+      datasets <- rio_list_datasets()
+      all_tables <- datasets$name
+
+      # Maak een grafiek van alle relaties
+      g <- igraph::make_empty_graph(directed = FALSE)
+
+      # Voeg alle tabellen toe als knopen
+      for (table in all_tables) {
+        g <- igraph::add_vertices(g, 1, name = table)
+      }
+
+      # Voeg alle relaties toe als verbindingen
+      for (rel_name in names(relations$relations)) {
+        rel <- relations$relations[[rel_name]]
+        from_idx <- which(igraph::V(g)$name == rel$from)
+        to_idx <- which(igraph::V(g)$name == rel$to)
+
+        if (length(from_idx) > 0 && length(to_idx) > 0) {
+          g <- igraph::add_edges(g, c(from_idx, to_idx))
+        }
+      }
+
+      # Zoek het kortste pad tussen alle paren van tabellen
+      all_tables_to_join <- table_names
+
+      for (i in 1:(length(table_names)-1)) {
+        for (j in (i+1):length(table_names)) {
+          from_table <- table_names[i]
+          to_table <- table_names[j]
+
+          # Controleer of er een direct pad is
+          direct_relation_exists <- FALSE
+          for (rel_name in names(relations$relations)) {
+            rel <- relations$relations[[rel_name]]
+            if ((rel$from == from_table && rel$to == to_table) ||
+                (rel$from == to_table && rel$to == from_table)) {
+              direct_relation_exists <- TRUE
+              break
+            }
+          }
+
+          # Als er geen directe relatie is, zoek een pad
+          if (!direct_relation_exists) {
+            from_idx <- which(igraph::V(g)$name == from_table)
+            to_idx <- which(igraph::V(g)$name == to_table)
+
+            if (length(from_idx) > 0 && length(to_idx) > 0) {
+              # Zoek alle paden tot max_path_length
+              paths <- igraph::all_simple_paths(g,
+                                                from = from_idx,
+                                                to = to_idx,
+                                                mode = "all",
+                                                cutoff = max_path_length)
+
+              if (length(paths) > 0) {
+                # Vind het kortste pad
+                shortest_path <- paths[[1]]
+                shortest_length <- length(shortest_path)
+
+                for (p in 2:length(paths)) {
+                  if (length(paths[[p]]) < shortest_length) {
+                    shortest_path <- paths[[p]]
+                    shortest_length <- length(paths[[p]])
+                  }
+                }
+
+                # Voeg alle tabellen in het pad toe aan de lijst
+                path_tables <- igraph::V(g)$name[shortest_path]
+                all_tables_to_join <- unique(c(all_tables_to_join, path_tables))
+
+                if (verbose) {
+                  message("Pad gevonden tussen ", from_table, " en ", to_table,
+                          ": ", paste(path_tables, collapse = " -> "))
+                }
+              } else if (verbose) {
+                message("Geen pad gevonden tussen ", from_table, " en ", to_table,
+                        " binnen max_path_length ", max_path_length)
+              }
+            }
+          }
+        }
+      }
+
+      # Update de lijst met tabellen om te laden
+      table_names <- all_tables_to_join
+
+      if (verbose) {
+        message("Tabellen om te joinen (inclusief tussentabellen): ",
+                paste(table_names, collapse = ", "))
+      }
+    }
+
+    # Laad alle benodigde tabellen
+    tibbles <- list()
+    for (name in table_names) {
+      if (verbose) {
+        message("Tabel laden: ", name)
+      }
+      tibbles[[name]] <- rio_get_data(table_name = name, quiet = !verbose)
+    }
+  } else {
+    # Input zijn reeds geladen tibbles
+    tibbles <- input_args
+    table_names <- names(tibbles)
+  }
+
+  # Controleer of er genoeg tabellen zijn om te joinen
+  if (length(tibbles) < 2) {
+    stop("Tenminste twee tabellen zijn nodig om te joinen")
+  }
+
+  # Controleer op onbenoemde parameters
+  if (!by_names && "" %in% table_names) {
+    stop("Bij het direct meegeven van tibbles moeten alle argumenten benoemd zijn. Bijvoorbeeld: rio_join_with_paths(tabel1 = df1, tabel2 = df2)")
+  }
+
+  if (verbose) {
+    message("Joinen van ", length(table_names), " tabellen: ", paste(table_names, collapse = ", "))
+  }
+
+  # Zoek het optimale pad om de tabellen te verbinden
+  path_info <- find_optimal_path(table_names, relations$relations, verbose = verbose)
+
+  # Voer joins uit op basis van het optimale pad
+  result <- execute_dataset_joins(tibbles, path_info, relations$relations, verbose = verbose, reference_date = reference_date)
+
+  # Formatteer als geneste tibble indien gewenst
+  if (nested) {
+    result <- nest_result(result, table_names, path_info)
+  }
+
+  if (verbose) {
+    message("Alle tabellen succesvol gejoind. Resultaat heeft ", nrow(result), " rijen en ", ncol(result), " kolommen")
   }
 
   return(result)
