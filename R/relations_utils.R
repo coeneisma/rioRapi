@@ -303,40 +303,10 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
   return(result)
 }
 
-#' Visualize RIO table relationships
-#'
-#' This function creates a visualization of relationships between RIO tables.
-#' It can show connections between specific tables, including indirect connections
-#' through intermediary tables.
-#'
-#' @param tables Character vector of table names to visualize.
-#'        If NULL, all tables with relationships will be included.
-#' @param highlight_tables Character vector of table names to highlight.
-#' @param min_confidence Minimum confidence level for relationships ("high" or "medium").
-#' @param interactive Logical indicating whether to create an interactive visualization.
-#'        Default is TRUE.
-#' @param as_table Logical indicating whether to return relationships as a table.
-#'        Default is FALSE.
-#' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#'
-#' @return A visualization object (interactive network or static plot) or a table of relationships.
-#'
-#' @examples
-#' \dontrun{
-#' # Visualize relationships between specific tables
-#' rio_visualize(c("onderwijslocaties", "vestigingserkenningen"))
-#'
-#' # Visualize all table relationships
-#' rio_visualize()
-#'
-#' # Get relationships as a table
-#' rel_table <- rio_visualize(as_table = TRUE)
-#' }
-#'
-#' @export
 rio_visualize <- function(tables = NULL, highlight_tables = NULL,
                           min_confidence = "medium", interactive = TRUE,
-                          as_table = FALSE, quiet = FALSE) {
+                          as_table = FALSE, quiet = FALSE,
+                          max_path_length = 3) {  # Toegevoegde parameter
   # Load relations
   relations <- rio_load_relations()
 
@@ -347,12 +317,13 @@ rio_visualize <- function(tables = NULL, highlight_tables = NULL,
 
   # Create visualization
   result <- rio_visualize_structure(
-    tables = tables,
+    datasets = tables,
     relations = relations$relations,
     min_confidence = min_confidence,
     interactive = interactive,
-    highlight_tables = highlight_tables,
-    find_paths = TRUE
+    highlight_datasets = highlight_tables,
+    find_paths = TRUE,
+    max_path_length = max_path_length  # Doorgeven van de parameter
   )
 
   return(result)
@@ -504,6 +475,158 @@ visualize_path <- function(path_info, relations, dataset_names, interactive = TR
   }
 }
 
+
+#' Visualize connections between RIO datasets
+#'
+#' This function creates a visualization of connections between RIO datasets.
+#'
+#' @param connections List of connections between datasets
+#' @param min_confidence Minimum confidence level for relationships to display
+#' @param interactive Logical indicating whether to create an interactive visualization
+#'
+#' @return A visualization object (igraph plot or visNetwork object)
+#'
+#' @keywords internal
+rio_visualize_connections <- function(connections, min_confidence = "medium", interactive = TRUE) {
+  # Create an empty graph
+  g <- igraph::make_empty_graph(n = 0, directed = FALSE)
+
+  if (length(connections) == 0) {
+    cli::cli_alert_warning("No connections to visualize")
+    return(g)
+  }
+
+  # Get all unique dataset names
+  all_datasets <- unique(unlist(lapply(connections, function(conn) {
+    c(conn$from, conn$to)
+  })))
+
+  # Add all datasets as vertices
+  for (dataset in all_datasets) {
+    g <- igraph::add_vertices(g, 1, name = dataset)
+  }
+
+  # Add edges for connections
+  edge_labels <- character(0)
+  edge_colors <- character(0)
+  edge_widths <- numeric(0)
+
+  for (conn in connections) {
+    # Skip relations with insufficient confidence
+    if (min_confidence == "high" && conn$confidence != "high") {
+      next
+    }
+
+    # Add an edge
+    g <- igraph::add_edges(g, c(conn$from, conn$to))
+
+    # Get the joining field(s) for the edge label
+    if (!is.null(conn$by)) {
+      if (is.character(conn$by) && !is.null(names(conn$by)) && any(names(conn$by) != "")) {
+        # Named fields (different names in source and target)
+        label_parts <- character(0)
+        for (i in seq_along(conn$by)) {
+          if (names(conn$by)[i] == "") {
+            label_parts <- c(label_parts, conn$by[i])
+          } else {
+            label_parts <- c(label_parts, paste(names(conn$by)[i], "=", conn$by[i]))
+          }
+        }
+        join_fields <- paste(label_parts, collapse = "\n")
+      } else {
+        # Unnamed fields (same name in both datasets)
+        join_fields <- paste(conn$by, collapse = "\n")
+      }
+    } else {
+      join_fields <- "Unknown connection"
+    }
+
+    edge_id <- igraph::ecount(g)
+    edge_labels[edge_id] <- join_fields
+
+    # Assign color and width based on confidence
+    edge_colors[edge_id] <- ifelse(conn$confidence == "high", "green", "orange")
+    edge_widths[edge_id] <- ifelse(conn$confidence == "high", 3, 2)
+  }
+
+  # Set edge attributes
+  if (igraph::ecount(g) > 0) {
+    igraph::E(g)$label <- edge_labels
+    igraph::E(g)$color <- edge_colors
+    igraph::E(g)$width <- edge_widths
+  }
+
+  # Set vertex attributes
+  igraph::V(g)$label <- igraph::V(g)$name
+  igraph::V(g)$color <- "lightblue"
+
+  # Create visualization
+  if (interactive) {
+    # Create interactive visualization with visNetwork
+    if (!requireNamespace("visNetwork", quietly = TRUE)) {
+      warning("Package 'visNetwork' is required for interactive visualization. Using static visualization instead.")
+      interactive <- FALSE
+    } else {
+      nodes <- data.frame(
+        id = igraph::V(g)$name,
+        label = igraph::V(g)$name,
+        title = igraph::V(g)$name,  # Tooltip
+        color = "lightblue",
+        stringsAsFactors = FALSE
+      )
+
+      if (igraph::ecount(g) > 0) {
+        edges <- data.frame(
+          from = igraph::get.edgelist(g)[, 1],
+          to = igraph::get.edgelist(g)[, 2],
+          label = igraph::E(g)$label,
+          title = igraph::E(g)$label,  # Tooltip
+          color = igraph::E(g)$color,
+          width = igraph::E(g)$width,
+          font = list(color = "red", size = 12),
+          stringsAsFactors = FALSE
+        )
+
+        return(visNetwork::visNetwork(nodes, edges) |>
+                 visNetwork::visOptions(highlightNearest = TRUE, selectedBy = "label") |>
+                 visNetwork::visEdges(font = list(color = "red", size = 12)) |>
+                 visNetwork::visNodes(font = list(size = 14)) |>
+                 visNetwork::visLayout(randomSeed = 123) |>
+                 visNetwork::visPhysics(solver = "forceAtlas2Based"))
+      } else {
+        # No edges, just display nodes
+        return(visNetwork::visNetwork(nodes) |>
+                 visNetwork::visOptions(highlightNearest = TRUE, selectedBy = "label") |>
+                 visNetwork::visNodes(font = list(size = 14)) |>
+                 visNetwork::visLayout(randomSeed = 123))
+      }
+    }
+  }
+
+  if (!interactive) {
+    # Static visualization with igraph
+    plot(g,
+         layout = igraph::layout_with_fr(g),
+         vertex.size = 20,
+         vertex.label.color = "black",
+         vertex.label.cex = 0.8,
+         edge.label.cex = 0.7,
+         edge.curved = 0.2,
+         main = "RIO Datasets Connection Network")
+
+    # Add legend if we have edges
+    if (igraph::ecount(g) > 0) {
+      legend("bottomright",
+             legend = c("High Confidence", "Medium Confidence"),
+             col = c("green", "orange"),
+             lwd = c(3, 2),
+             cex = 0.8)
+    }
+
+    # Return the graph for possible further usage
+    invisible(g)
+  }
+}
 
 #' Create a nested tibble from join results
 #'
@@ -1158,3 +1281,72 @@ rio_save_relations <- function(relations, file_path = "inst/extdata/rio_relation
   return(invisible(file_path))
 }
 
+#' Find connections between RIO datasets based on predefined relations
+#'
+#' This function identifies connections between RIO datasets using the relations
+#' defined in the YAML configuration file.
+#'
+#' @param dataset_names Character vector with names of datasets to find connections for
+#' @param relations List of relation definitions from the YAML configuration
+#' @param min_confidence Minimum confidence level for relationships ("high" or "medium")
+#' @param verbose Logical indicating whether to display progress messages. Default is FALSE.
+#'
+#' @return A list of connections between the specified datasets
+#'
+#' @keywords internal
+rio_find_connections <- function(dataset_names, relations, min_confidence = "medium", verbose = FALSE) {
+  if (verbose) {
+    cli::cli_alert_info("Finding connections between {length(dataset_names)} datasets")
+  }
+
+  # Initialize empty list to store connections
+  connections <- list()
+
+  # Create all possible pairs of datasets
+  dataset_pairs <- utils::combn(dataset_names, 2, simplify = FALSE)
+
+  # For each pair, find direct relations
+  for (pair in dataset_pairs) {
+    from_dataset <- pair[1]
+    to_dataset <- pair[2]
+
+    if (verbose) {
+      cli::cli_alert_info("Checking connection: {from_dataset} -> {to_dataset}")
+    }
+
+    # Look for direct relations between these datasets
+    for (rel_name in names(relations)) {
+      rel <- relations[[rel_name]]
+
+      # Skip relations with insufficient confidence
+      if (min_confidence == "high" && rel$confidence != "high") {
+        next
+      }
+
+      # Check if this relation connects our datasets (in either direction)
+      if ((rel$from == from_dataset && rel$to == to_dataset) ||
+          (rel$from == to_dataset && rel$to == from_dataset)) {
+
+        # Add this relation to our list of connections
+        connections[[length(connections) + 1]] <- list(
+          from = rel$from,
+          to = rel$to,
+          relationship = rel_name,
+          by = rel$by,
+          confidence = rel$confidence,
+          description = ifelse(is.null(rel$description), NA, rel$description)
+        )
+
+        if (verbose) {
+          cli::cli_alert_success("Found relation between '{rel$from}' and '{rel$to}'")
+        }
+      }
+    }
+  }
+
+  if (length(connections) == 0 && verbose) {
+    cli::cli_alert_warning("No direct connections found between the specified datasets")
+  }
+
+  return(connections)
+}

@@ -486,3 +486,39 @@ rio_add_dataset_metadata <- function(datasets, dataset_name,
   return(datasets)
 }
 
+#' List available datasets in the RIO package
+#'
+#' This function retrieves a list of all available datasets (resources) in the RIO package.
+#'
+#' @return A tibble with information about each dataset, including ID, name, and description.
+#'
+#' @examples
+#' \dontrun{
+#' datasets <- rio_list_datasets()
+#' }
+#'
+#' @export
+rio_list_datasets <- function() {
+  # Define package_id
+  package_id <- "rio_nfo_po_vo_vavo_mbo_ho"
+
+  # Get package metadata
+  metadata <- rio_get_metadata()
+
+  # Check if resources exist
+  if (!is.null(metadata$resources) && length(metadata$resources) > 0) {
+    # Resources data frame
+    resources_df <- tibble::as_tibble(metadata$resources)
+
+    # Select relevant columns, if they exist
+    cols_to_select <- intersect(
+      c("id", "name", "description", "format", "last_modified", "url", "created"),
+      names(resources_df)
+    )
+
+    return(resources_df[, cols_to_select, drop = FALSE])
+  } else {
+    warning("No resources found in the package: ", package_id)
+    return(tibble::tibble())
+  }
+}

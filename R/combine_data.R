@@ -38,8 +38,19 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
 
   # If tibbles are provided, use them for connection detection
   if (length(tibbles) > 0) {
-    # Detect connections between the provided tibbles
-    connections <- rio_auto_connect(..., auto_join = FALSE, verbose = FALSE)
+    # Detect connections between the provided tibbles using the defined relations
+    # instead of auto-detecting them
+    if (is.null(relations)) {
+      relations_data <- rio_load_relations()
+      relations <- relations_data$relations
+    } else if (!is.null(relations$relations)) {
+      # If complete structure is provided, extract just the relations
+      relations <- relations$relations
+    }
+
+    # Find connections between the provided tibbles based on known relations
+    connections <- rio_find_connections(names(tibbles), relations,
+                                        min_confidence = min_confidence)
 
     # Visualize the detected connections
     return(rio_visualize_connections(
@@ -119,10 +130,10 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
 
           # Check if there's a direct connection
           direct_connection <- FALSE
-          for (rel_name in names(structure$relationships)) {
-            rel <- structure$relationships[[rel_name]]
-            if ((rel$source == from_dataset && rel$target == to_dataset) ||
-                (rel$source == to_dataset && rel$target == from_dataset)) {
+          for (rel_name in names(relations)) {
+            rel <- relations[[rel_name]]
+            if ((rel$from == from_dataset && rel$to == to_dataset) ||
+                (rel$from == to_dataset && rel$to == from_dataset)) {
               direct_connection <- TRUE
               break
             }
