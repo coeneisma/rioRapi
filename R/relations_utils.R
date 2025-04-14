@@ -582,227 +582,47 @@ rio_join_datasets <- function(..., by_names = FALSE, relations = NULL,
 }
 
 
-#' Detect available datasets and their fields
-#'
-#' This function retrieves all available RIO datasets and their fields and stores
-#' this information for later use. Unlike rio_detect_structure(), no relationships
-#' between datasets are detected.
-#'
-#' @param force Logical indicating whether to perform a new detection,
-#'        even if a recent dataset detection exists. Default is FALSE.
-#' @param days_threshold Number of days after which a dataset detection is considered outdated.
-#'        Default is 28 (4 weeks).
-#' @param save_dir Directory where the result is saved. Default is the data directory of the package.
-#' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#'
-#' @return Returns a list with the detected RIO datasets (invisible).
-#'
-#' @keywords internal
-rio_detect_datasets <- function(force = FALSE, days_threshold = 28,
-                                save_dir = get_rio_data_dir(), quiet = FALSE) {
+# # Detecteer de structuur
+# structure <- rio_detect_structure()
+#
+# # Extraheer relaties uit de structuur
+# relations <- list()
+# for (rel_name in names(structure$relationships)) {
+#   detected_rel <- structure$relationships[[rel_name]]
+#
+#   # Maak een relatie-object
+#   relation <- rio_create_relation(
+#     from = detected_rel$source,
+#     to = detected_rel$target,
+#     type = "one-to-many",  # aanpassen indien nodig
+#     from_field = detected_rel$exact_matches[1],  # eerste match gebruiken
+#     to_field = detected_rel$exact_matches[1]
+#   )
+#
+#   # Voeg toe aan relaties
+#   relations <- rio_add_relation(relations, relation)
+# }
+#
+# # Bewerk relaties
+# relations <- rio_remove_relation(relations, "tabel1", "tabel2")
+# new_relation <- rio_create_relation("tabel1", "tabel2", "one-to-many", "ID1", "ID2")
+# relations <- rio_add_relation(relations, new_relation)
+#
+# # Exporteer naar CSV voor bewerking
+# rio_export_relations_csv(relations, "rio_relations.csv")
+#
+# # Later: importeer bijgewerkte relaties
+# relations <- rio_import_relations_csv("rio_relations_edited.csv")
+#
+# # Sla op als YAML
+# rio_save_relations_yaml(relations)
+#
+# # Gebruik de relaties bij het combineren van datasets
+# data1 <- rio_get_data(dataset_name = "tabel1")
+# data2 <- rio_get_data(dataset_name = "tabel2")
+# combined <- rio_combine_with_relations(relations, tabel1 = data1, tabel2 = data2)
 
-  # Get the path for the dataset file
-  dataset_file <- file.path(save_dir, "rio_datasets_info.rds")
 
-  # Check if dataset info already exists and is recent
-  if (!force && file.exists(dataset_file)) {
-    file_info <- file.info(dataset_file)
-    file_age <- as.numeric(difftime(Sys.time(), file_info$mtime, units = "days"))
-
-    if (file_age < days_threshold) {
-      if (!quiet) {
-        cli::cli_alert_info("Using existing RIO dataset info (age: {round(file_age, 1)} days)")
-      }
-      return(invisible(readRDS(dataset_file)))
-    } else if (!quiet) {
-      cli::cli_alert_warning("Existing dataset info is {round(file_age, 1)} days old (threshold: {days_threshold}). Regenerating...")
-    }
-  }
-
-  if (!quiet) {
-    cli::cli_alert_info("Detecting RIO datasets. This may take several minutes...")
-  }
-
-  # Create output directory if it doesn't exist
-  if (!dir.exists(save_dir)) {
-    dir.create(save_dir, recursive = TRUE)
-  }
-
-  # Get list of all available datasets
-  datasets <- rio_list_datasets()
-
-  if (nrow(datasets) == 0) {
-    stop("No datasets found in RIO API")
-  }
-
-  if (!quiet) {
-    cli::cli_alert_info("Found {nrow(datasets)} datasets")
-    cli::cli_progress_bar(
-      format = "{cli::pb_spin} Analyzing dataset {cli::pb_current}/{cli::pb_total}: {dataset_name}",
-      total = nrow(datasets),
-      clear = FALSE
-    )
-  }
-
-  # Initialize structure to store dataset information
-  rio_datasets <- list(
-    datasets = list(),
-    metadata = list(
-      created = Sys.time(),
-      version = "1.0.0",
-      dataset_count = nrow(datasets)
-    )
-  )
-
-  # Analyze each dataset
-  for (i in 1:nrow(datasets)) {
-    dataset_info <- datasets[i, ]
-    dataset_id <- dataset_info$id
-    dataset_name <- dataset_info$name
-
-    if (!quiet) {
-      cli::cli_progress_update(set = i, status = dataset_name)
-    }
-
-    # Get fields for this dataset
-    tryCatch({
-      fields <- rio_get_fields(dataset_id = dataset_id)
-
-      if (nrow(fields) > 0) {
-        # Store dataset information
-        rio_datasets$datasets[[dataset_name]] <- list(
-          id = dataset_id,
-          name = dataset_name,
-          description = dataset_info$description,
-          fields = fields
-        )
-      }
-    }, error = function(e) {
-      if (!quiet) {
-        cli::cli_alert_danger("Error retrieving fields for dataset {dataset_name}: {e$message}")
-      }
-    })
-  }
-
-  if (!quiet) {
-    cli::cli_progress_done()
-  }
-
-  # Save the dataset info to a file
-  saveRDS(rio_datasets, dataset_file)
-
-  if (!quiet) {
-    cli::cli_alert_success("RIO dataset detection completed: found {length(rio_datasets$datasets)} datasets")
-    cli::cli_alert_info("Dataset info saved to: {dataset_file}")
-  }
-
-  invisible(rio_datasets)
-}
-
-#' Load the detected RIO dataset information
-#'
-#' This function loads the saved RIO dataset information. If no information exists or it is
-#' outdated, a new detection can optionally be performed.
-#'
-#' @param auto_detect Logical indicating whether to automatically perform a new dataset detection
-#'        if none exists or if it is outdated. Default is TRUE.
-#' @param days_threshold Number of days after which a dataset detection is considered outdated.
-#'        Default is 28 (4 weeks).
-#' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#'
-#' @return A list with the detected RIO datasets.
-#'
-#' @keywords internal
-rio_load_datasets <- function(auto_detect = TRUE, days_threshold = 28, quiet = FALSE) {
-  dataset_file <- file.path(get_rio_data_dir(), "rio_datasets_info.rds")
-
-  # Check if dataset info exists
-  if (!file.exists(dataset_file)) {
-    if (auto_detect) {
-      if (!quiet) {
-        cli::cli_alert_info("No existing RIO dataset info found. Creating new dataset info...")
-      }
-      return(rio_detect_datasets(quiet = quiet))
-    } else {
-      stop("No RIO dataset info found. Run rio_detect_datasets() first.")
-    }
-  }
-
-  # Check if dataset info is recent
-  file_info <- file.info(dataset_file)
-  file_age <- as.numeric(difftime(Sys.time(), file_info$mtime, units = "days"))
-
-  if (file_age >= days_threshold) {
-    if (auto_detect) {
-      if (!quiet) {
-        cli::cli_alert_warning("Existing dataset info is {round(file_age, 1)} days old (threshold: {days_threshold}). Regenerating...")
-      }
-      return(rio_detect_datasets(quiet = quiet))
-    } else if (!quiet) {
-      cli::cli_alert_warning("Existing dataset info is {round(file_age, 1)} days old (threshold: {days_threshold})")
-    }
-  } else if (!quiet) {
-    cli::cli_alert_info("Using existing RIO dataset info (age: {round(file_age, 1)} days)")
-  }
-
-  # Load the dataset info
-  datasets <- readRDS(dataset_file)
-  return(datasets)
-}
-
-#' Add metadata to a dataset
-#'
-#' This function adds metadata to a dataset in the RIO structure.
-#'
-#' @param datasets The RIO datasets structure as returned by rio_load_datasets().
-#' @param dataset_name Name of the dataset.
-#' @param category Main category of the dataset (e.g., "Educational Structure Reality").
-#' @param subcategory Subcategory of the dataset (e.g., "Who What Where How").
-#' @param dimension Dimension of the dataset (e.g., "Primary Education").
-#' @param description Description of the dataset. If NULL, the existing description is kept.
-#' @param extra_metadata List with any additional metadata.
-#'
-#' @return The updated RIO datasets structure.
-#'
-#' @keywords internal
-rio_add_dataset_metadata <- function(datasets, dataset_name,
-                                     category = NULL, subcategory = NULL,
-                                     dimension = NULL, description = NULL,
-                                     extra_metadata = NULL) {
-  # Check if the dataset exists
-  if (!dataset_name %in% names(datasets$datasets)) {
-    stop("Dataset '", dataset_name, "' does not exist in the structure")
-  }
-
-  # Add metadata
-  if (!is.null(category)) {
-    datasets$datasets[[dataset_name]]$category <- category
-  }
-
-  if (!is.null(subcategory)) {
-    datasets$datasets[[dataset_name]]$subcategory <- subcategory
-  }
-
-  if (!is.null(dimension)) {
-    datasets$datasets[[dataset_name]]$dimension <- dimension
-  }
-
-  if (!is.null(description)) {
-    datasets$datasets[[dataset_name]]$description <- description
-  }
-
-  # Add any extra metadata
-  if (!is.null(extra_metadata) && is.list(extra_metadata)) {
-    for (name in names(extra_metadata)) {
-      datasets$datasets[[dataset_name]][[name]] <- extra_metadata[[name]]
-    }
-  }
-
-  # Update last modified timestamp
-  datasets$metadata$last_modified <- Sys.time()
-
-  return(datasets)
-}
 
 #' Get metadata of a dataset
 #'
