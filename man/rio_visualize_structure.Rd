@@ -6,7 +6,7 @@
 \usage{
 rio_visualize_structure(
   datasets = NULL,
-  structure = NULL,
+  relations = NULL,
   min_confidence = "medium",
   interactive = TRUE,
   highlight_datasets = NULL,
@@ -19,8 +19,7 @@ rio_visualize_structure(
 \item{datasets}{Optional character vector of dataset names to visualize.
 If NULL, all datasets in the structure will be visualized.}
 
-\item{structure}{Optional RIO structure as returned by rio_load_structure().
-If NULL, the structure will be loaded automatically.}
+\item{relations}{Optional relation definitions. If NULL, relations are loaded from the YAML file.}
 
 \item{min_confidence}{Minimum confidence level for relationships.
 Can be "high" or "medium". Default is "medium".}
@@ -43,37 +42,16 @@ A visualization object showing the relationships between datasets.
 }
 \description{
 This function creates a visualization of the relationships between RIO datasets
-based on the detected structure. It can show connections between specific datasets,
+based on the YAML-defined structure. It can show connections between specific datasets,
 including indirect connections through intermediary datasets.
 }
 \examples{
 \dontrun{
-# Visualize all relationships from the detected structure
+# Visualize all relationships from the defined structure
 rio_visualize_structure()
 
 # Visualize only the relationship between two specific datasets
 rio_visualize_structure(datasets = c("onderwijslocaties", "vestigingserkenningen"))
-
-# Find indirect connection paths between datasets that aren't directly connected
-rio_visualize_structure(
-  datasets = c("onderwijslocaties", "onderwijsinstellingserkenningen"),
-  find_paths = TRUE
-)
-
-# Specify additional parameters
-rio_visualize_structure(
-  datasets = c("onderwijslocaties", "vestigingserkenningen", "onderwijsinstellingserkenningen"),
-  highlight_datasets = c("onderwijslocaties"),
-  min_confidence = "high"
-)
-
-# Alternative method with loaded datasets
-locations <- rio_get_locations(city = "Amsterdam")
-institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
-rio_visualize_structure(
-  locations = locations,
-  institutions = institutions
-)
 }
 
 }

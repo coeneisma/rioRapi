@@ -1,30 +1,2086 @@
-vestigingserkenningen to relaties_onderwijslocatiegebruiken_vestigingserkenningen:
-  from: vestigingserkenningen
-  to: relaties_onderwijslocatiegebruiken_vestigingserkenningen
-  type: one-to-many
-  by: VESTIGINGSCODE
-  confidence: high
-vestigingserkenningen to relaties_onderwijsinstellingserkenningen_vestigingserkenningen:
-  from: vestigingserkenningen
-  to: relaties_onderwijsinstellingserkenningen_vestigingserkenningen
-  type: one-to-many
-  by: VESTIGINGSCODE
-  confidence: high
-onderwijsinstellingserkenningen to relaties_onderwijsinstellingserkenningen_vestigingserkenningen:
-  from: onderwijsinstellingserkenningen
-  to: relaties_onderwijsinstellingserkenningen_vestigingserkenningen
-  type: one-to-many
-  by: OIE_CODE
-  confidence: high
-onderwijslocatiegebruiken to relaties_onderwijslocatiegebruiken_vestigingserkenningen:
-  from: onderwijslocatiegebruiken
-  to: relaties_onderwijslocatiegebruiken_vestigingserkenningen
-  type: one-to-many
-  by: ONDERWIJSLOCATIECODE
-  confidence: high
-onderwijslocatie to onderwijslocatiegebruiken:
-  from: onderwijslocatie
-  to: onderwijslocatiegebruiken
-  type: one-to-many
-  by: ONDERWIJSLOCATIECODE
-  confidence: high
+metadata:
+  version: 1.0.0
+  created: '2025-04-14'
+  author: RIO Package
+  description: Relationships between tables in the Dutch Register of Institutions
+    and Education
+  notes: |-
+    This file defines the relationships between tables in the RIO (Register Instellingen Onderwijs) data model.
+    It serves as the source for combining data from different tables in the educational system.
+
+    The relations are organized by educational sectors and table categories:
+    - Primary education (PO)
+    - Secondary education (VO)
+    - Secondary general adult education (VAVO)
+    - Vocational education (MBO)
+    - Higher education (HO)
+    - Non-formal education (NFO)
+relations:
+  mbo_groepen_to_mbo_structuren:
+    from: mbo_groepen
+    to: mbo_structuren
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_groepen to mbo_structuren (isOpleidingstelselVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOpleidingstelselVoor
+      cardinality: 1:1..*
+  mbo_opleidingen_to_mbo_structuren:
+    from: mbo_opleidingen
+    to: mbo_structuren
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingen to mbo_structuren (isOpleidingstelselVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOpleidingstelselVoor
+      cardinality: 1:1..*
+  mbo_opleidingsonderdelen_to_mbo_structuren:
+    from: mbo_opleidingsonderdelen
+    to: mbo_structuren
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingsonderdelen to mbo_structuren (isOpleidingstelselVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOpleidingstelselVoor
+      cardinality: 1:1..*
+  mbo_groepen_to_mbo_opleidingen:
+    from: mbo_groepen
+    to: mbo_opleidingen
+    type: one-to-one
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_groepen to mbo_opleidingen
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: 'null'
+      cardinality: '1:1'
+  mbo_groepen_to_mbo_relaties_opleidingseenheden:
+    from: mbo_groepen
+    to: mbo_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links mbo_groepen to mbo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  mbo_opleidingen_to_mbo_relaties_opleidingseenheden:
+    from: mbo_opleidingen
+    to: mbo_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingen to mbo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  mbo_opleidingsonderdelen_to_mbo_relaties_opleidingseenheden:
+    from: mbo_opleidingsonderdelen
+    to: mbo_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingsonderdelen to mbo_relaties_opleidingseenheden
+      (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  mbo_groepen_to_mbo_relaties_opleidingseenheden_erkenningen:
+    from: mbo_groepen
+    to: mbo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_groepen to mbo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  mbo_opleidingen_to_mbo_relaties_opleidingseenheden_erkenningen:
+    from: mbo_opleidingen
+    to: mbo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingen to mbo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  mbo_opleidingsonderdelen_to_mbo_relaties_opleidingseenheden_erkenningen:
+    from: mbo_opleidingsonderdelen
+    to: mbo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingsonderdelen to mbo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  mbo_opleidingserkenning_to_mbo_relaties_opleidingseenheden_erkenningen:
+    from: mbo_opleidingserkenning
+    to: mbo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingserkenning to mbo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  mbo_generieke_examen_onderdeel_erkenning_to_mbo_relaties_opleidingseenheden_erkenningen:
+    from: mbo_generieke_examen_onderdeel_erkenning
+    to: mbo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_generieke_examen_onderdeel_erkenning to mbo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vavo_groepen_to_vavo_relaties_opleidingseenheden:
+    from: vavo_groepen
+    to: vavo_relaties_opleidingseenheden
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_groepen to vavo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  vavo_opleidingen_to_vavo_relaties_opleidingseenheden:
+    from: vavo_opleidingen
+    to: vavo_relaties_opleidingseenheden
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_opleidingen to vavo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  vavo_opleidingsfasen_to_vavo_relaties_opleidingseenheden:
+    from: vavo_opleidingsfasen
+    to: vavo_relaties_opleidingseenheden
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_opleidingsfasen to vavo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  vavo_groepen_to_vavo_relaties_opleidingseenheden_erkenningen:
+    from: vavo_groepen
+    to: vavo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_groepen to vavo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vavo_opleidingen_to_vavo_relaties_opleidingseenheden_erkenningen:
+    from: vavo_opleidingen
+    to: vavo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_opleidingen to vavo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vavo_opleidingsfasen_to_vavo_relaties_opleidingseenheden_erkenningen:
+    from: vavo_opleidingsfasen
+    to: vavo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_opleidingsfasen to vavo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vavo_opleidings_erkenning_to_vavo_relaties_opleidingseenheden_erkenningen:
+    from: vavo_opleidings_erkenning
+    to: vavo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_opleidings_erkenning to vavo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_groepen_to_vo_relaties_opleidingseenheden:
+    from: vo_groepen
+    to: vo_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links vo_groepen to vo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  vo_opleidingen_to_vo_relaties_opleidingseenheden:
+    from: vo_opleidingen
+    to: vo_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingen to vo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  vo_opleidingsfasen_to_vo_relaties_opleidingseenheden:
+    from: vo_opleidingsfasen
+    to: vo_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingsfasen to vo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  vo_opleidingsonderdelen_to_vo_relaties_opleidingseenheden:
+    from: vo_opleidingsonderdelen
+    to: vo_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingsonderdelen to vo_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  vo_opleidingsonderdelen_to_vo_relaties_vak_erkenningen:
+    from: vo_opleidingsonderdelen
+    to: vo_relaties_vak_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingsonderdelen to vo_relaties_vak_erkenningen (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_vak_erkenning_to_vo_relaties_vak_erkenningen:
+    from: vo_vak_erkenning
+    to: vo_relaties_vak_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_vak_erkenning to vo_relaties_vak_erkenningen (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_groepen_to_vo_relaties_opleidingseenheden_erkenningen:
+    from: vo_groepen
+    to: vo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_groepen to vo_relaties_opleidingseenheden_erkenningen (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_opleidingen_to_vo_relaties_opleidingseenheden_erkenningen:
+    from: vo_opleidingen
+    to: vo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingen to vo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_opleidingsfasen_to_vo_relaties_opleidingseenheden_erkenningen:
+    from: vo_opleidingsfasen
+    to: vo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingsfasen to vo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_opleidingsonderdelen_to_vo_relaties_opleidingseenheden_erkenningen:
+    from: vo_opleidingsonderdelen
+    to: vo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingsonderdelen to vo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_opleidings_erkenning_to_vo_relaties_opleidingseenheden_erkenningen:
+    from: vo_opleidings_erkenning
+    to: vo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidings_erkenning to vo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_groeps_erkenning_to_vo_relaties_opleidingseenheden_erkenningen:
+    from: vo_groeps_erkenning
+    to: vo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_groeps_erkenning to vo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  po_groepen_to_po_relaties_opleidingseenheden:
+    from: po_groepen
+    to: po_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links po_groepen to po_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  po_opleidingen_to_po_relaties_opleidingseenheden:
+    from: po_opleidingen
+    to: po_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingen to po_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  po_opleidingsfasen_to_po_relaties_opleidingseenheden:
+    from: po_opleidingsfasen
+    to: po_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingsfasen to po_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  po_groepen_to_po_relaties_opleidingseenheden_erkenningen:
+    from: po_groepen
+    to: po_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_groepen to po_relaties_opleidingseenheden_erkenningen (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  po_opleidingen_to_po_relaties_opleidingseenheden_erkenningen:
+    from: po_opleidingen
+    to: po_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingen to po_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  po_opleidingsfasen_to_po_relaties_opleidingseenheden_erkenningen:
+    from: po_opleidingsfasen
+    to: po_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingsfasen to po_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  po_opleidings_erkenning_to_po_relaties_opleidingseenheden_erkenningen:
+    from: po_opleidings_erkenning
+    to: po_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidings_erkenning to po_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  ho_opleidingen_to_ho_relaties_opleidingseenheden:
+    from: ho_opleidingen
+    to: ho_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links ho_opleidingen to ho_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  ho_opleidingsonderdelen_to_ho_relaties_opleidingseenheden:
+    from: ho_opleidingsonderdelen
+    to: ho_relaties_opleidingseenheden
+    type: one-to-many
+    by: van_opleidingseenheidcode
+    confidence: high
+    description: Links ho_opleidingsonderdelen to ho_relaties_opleidingseenheden (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  ho_opleidingen_to_ho_relaties_opleidingseenheden_erkenningen:
+    from: ho_opleidingen
+    to: ho_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links ho_opleidingen to ho_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  ho_opleidingsonderdelen_to_ho_relaties_opleidingseenheden_erkenningen:
+    from: ho_opleidingsonderdelen
+    to: ho_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links ho_opleidingsonderdelen to ho_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  ho_opleidings_erkenning_to_ho_relaties_opleidingseenheden_erkenningen:
+    from: ho_opleidings_erkenning
+    to: ho_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links ho_opleidings_erkenning to ho_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  nfo_opleidingen_to_nfo_relaties_opleidingseenheden_erkenningen:
+    from: nfo_opleidingen
+    to: nfo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links nfo_opleidingen to nfo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  nfo_opleidings_erkenning_to_nfo_relaties_opleidingseenheden_erkenningen:
+    from: nfo_opleidings_erkenning
+    to: nfo_relaties_opleidingseenheden_erkenningen
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links nfo_opleidings_erkenning to nfo_relaties_opleidingseenheden_erkenningen
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vo_opleidings_erkenning_to_vo_groeps_erkenning:
+    from: vo_opleidings_erkenning
+    to: vo_groeps_erkenning
+    type: one-to-one
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links vo_opleidings_erkenning to vo_groeps_erkenning
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: 'null'
+      cardinality: 0..1:0..1
+  aangeboden_mbo_opleiding_to_aangeboden_mbo_opleiding_cohort:
+    from: aangeboden_mbo_opleiding
+    to: aangeboden_mbo_opleiding_cohort
+    type: one-to-many
+    by: aangeboden_opleidingcode
+    confidence: high
+    description: Links aangeboden_mbo_opleiding to aangeboden_mbo_opleiding_cohort
+      (heeftAanmeldingscohort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftAanmeldingscohort
+      cardinality: 1:0..*
+  mbo_groepen_to_aangeboden_mbo_opleiding:
+    from: mbo_groepen
+    to: aangeboden_mbo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_groepen to aangeboden_mbo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  mbo_opleidingen_to_aangeboden_mbo_opleiding:
+    from: mbo_opleidingen
+    to: aangeboden_mbo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingen to aangeboden_mbo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_mbo_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_mbo_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_mbo_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_mbo_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_mbo_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_mbo_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  mbo_opleidingsonderdelen_to_aangeboden_mbo_opleidingsonderdeel:
+    from: mbo_opleidingsonderdelen
+    to: aangeboden_mbo_opleidingsonderdeel
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links mbo_opleidingsonderdelen to aangeboden_mbo_opleidingsonderdeel
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: 'null'
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_mbo_opleidingsonderdeel:
+    from: onderwijslocatie
+    to: aangeboden_mbo_opleidingsonderdeel
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_mbo_opleidingsonderdeel (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_mbo_opleidingsonderdeel:
+    from: onderwijsaanbieder
+    to: aangeboden_mbo_opleidingsonderdeel
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_mbo_opleidingsonderdeel (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  vavo_groepen_to_aangeboden_vavo_opleiding:
+    from: vavo_groepen
+    to: aangeboden_vavo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_groepen to aangeboden_vavo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  vavo_opleidingen_to_aangeboden_vavo_opleiding:
+    from: vavo_opleidingen
+    to: aangeboden_vavo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_opleidingen to aangeboden_vavo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  vavo_opleidingsfasen_to_aangeboden_vavo_opleiding:
+    from: vavo_opleidingsfasen
+    to: aangeboden_vavo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vavo_opleidingsfasen to aangeboden_vavo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_vavo_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_vavo_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_vavo_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_vavo_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_vavo_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_vavo_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  vo_groepen_to_aangeboden_vo_opleiding:
+    from: vo_groepen
+    to: aangeboden_vo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_groepen to aangeboden_vo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  vo_opleidingen_to_aangeboden_vo_opleiding:
+    from: vo_opleidingen
+    to: aangeboden_vo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingen to aangeboden_vo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  vo_opleidingsfasen_to_aangeboden_vo_opleiding:
+    from: vo_opleidingsfasen
+    to: aangeboden_vo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingsfasen to aangeboden_vo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  vo_opleidingsonderdelen_to_aangeboden_vo_opleiding:
+    from: vo_opleidingsonderdelen
+    to: aangeboden_vo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links vo_opleidingsonderdelen to aangeboden_vo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_vo_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_vo_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_vo_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_vo_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_vo_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_vo_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  po_groepen_to_aangeboden_bo_opleiding:
+    from: po_groepen
+    to: aangeboden_bo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_groepen to aangeboden_bo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  po_opleidingen_to_aangeboden_bo_opleiding:
+    from: po_opleidingen
+    to: aangeboden_bo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingen to aangeboden_bo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  po_opleidingsfasen_to_aangeboden_bo_opleiding:
+    from: po_opleidingsfasen
+    to: aangeboden_bo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingsfasen to aangeboden_bo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_bo_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_bo_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_bo_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_bo_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_bo_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_bo_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  po_groepen_to_aangeboden_so_opleiding:
+    from: po_groepen
+    to: aangeboden_so_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_groepen to aangeboden_so_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  po_opleidingen_to_aangeboden_so_opleiding:
+    from: po_opleidingen
+    to: aangeboden_so_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingen to aangeboden_so_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  po_opleidingsfasen_to_aangeboden_so_opleiding:
+    from: po_opleidingsfasen
+    to: aangeboden_so_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingsfasen to aangeboden_so_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_so_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_so_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_so_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_so_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_so_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_so_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  po_groepen_to_aangeboden_vso_opleiding:
+    from: po_groepen
+    to: aangeboden_vso_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_groepen to aangeboden_vso_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  po_opleidingen_to_aangeboden_vso_opleiding:
+    from: po_opleidingen
+    to: aangeboden_vso_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingen to aangeboden_vso_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  po_opleidingsfasen_to_aangeboden_vso_opleiding:
+    from: po_opleidingsfasen
+    to: aangeboden_vso_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links po_opleidingsfasen to aangeboden_vso_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_vso_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_vso_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_vso_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_vso_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_vso_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_vso_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  ho_opleidingen_to_aangeboden_ho_opleiding:
+    from: ho_opleidingen
+    to: aangeboden_ho_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links ho_opleidingen to aangeboden_ho_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_ho_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_ho_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_ho_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_ho_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_ho_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_ho_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  ho_opleidingsonderdelen_to_aangeboden_ho_opleidingsonderdeel:
+    from: ho_opleidingsonderdelen
+    to: aangeboden_ho_opleidingsonderdeel
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links ho_opleidingsonderdelen to aangeboden_ho_opleidingsonderdeel
+      (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_ho_opleidingsonderdeel:
+    from: onderwijslocatie
+    to: aangeboden_ho_opleidingsonderdeel
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_ho_opleidingsonderdeel (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_ho_opleidingsonderdeel:
+    from: onderwijsaanbieder
+    to: aangeboden_ho_opleidingsonderdeel
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_ho_opleidingsonderdeel (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  nfo_opleidingen_to_aangeboden_nfo_opleiding:
+    from: nfo_opleidingen
+    to: aangeboden_nfo_opleiding
+    type: one-to-many
+    by: opleidingseenheidcode
+    confidence: high
+    description: Links nfo_opleidingen to aangeboden_nfo_opleiding (isVanHetSoort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isVanHetSoort
+      cardinality: 1:0..*
+  onderwijslocatie_to_aangeboden_nfo_opleiding:
+    from: onderwijslocatie
+    to: aangeboden_nfo_opleiding
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to aangeboden_nfo_opleiding (wordtGegevenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtGegevenOp
+      cardinality: 0..1:0..*
+  onderwijsaanbieder_to_aangeboden_nfo_opleiding:
+    from: onderwijsaanbieder
+    to: aangeboden_nfo_opleiding
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to aangeboden_nfo_opleiding (wordtAangebodenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAangebodenDoor
+      cardinality: 1:0..*
+  onderwijslocatie_to_onderwijslocatie_gebruik:
+    from: onderwijslocatie
+    to: onderwijslocatie_gebruik
+    type: one-to-many
+    by: onderwijslocatiecode
+    confidence: high
+    description: Links onderwijslocatie to onderwijslocatie_gebruik (isOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOp
+      cardinality: 1:1..*
+  onderwijsbestuur_to_onderwijslocatie_gebruik:
+    from: onderwijsbestuur
+    to: onderwijslocatie_gebruik
+    type: one-to-many
+    by: onderwijsbestuurid
+    confidence: high
+    description: Links onderwijsbestuur to onderwijslocatie_gebruik (laatOnderwijsVerzorgenOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: laatOnderwijsVerzorgenOp
+      cardinality: 1:0..*
+  onderwijsaanbieder_to_contactadres:
+    from: onderwijsaanbieder
+    to: contactadres
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to contactadres (isTeBereikenVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isTeBereikenVoor
+      cardinality: 1:0..*
+  onderwijsaanbiedersgroep_to_contactadres:
+    from: onderwijsaanbiedersgroep
+    to: contactadres
+    type: one-to-many
+    by: onderwijsaanbiedergroepid
+    confidence: high
+    description: Links onderwijsaanbiedersgroep to contactadres (isTeBereikenVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isTeBereikenVoor
+      cardinality: 1:0..*
+  onderwijsbestuur_to_contactadres:
+    from: onderwijsbestuur
+    to: contactadres
+    type: one-to-many
+    by: onderwijsbestuurid
+    confidence: high
+    description: Links onderwijsbestuur to contactadres (isTeBereikenVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isTeBereikenVoor
+      cardinality: 1:0..*
+  onderwijsaanbieder_to_relaties_onderwijsaanbiedersgroep_onderwijsaanbieder:
+    from: onderwijsaanbieder
+    to: relaties_onderwijsaanbiedersgroep_onderwijsaanbieder
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to relaties_onderwijsaanbiedersgroep_onderwijsaanbieder
+      (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  onderwijsaanbiedersgroep_to_relaties_onderwijsbestuur_onderwijsaanbiedersgroep:
+    from: onderwijsaanbiedersgroep
+    to: relaties_onderwijsbestuur_onderwijsaanbiedersgroep
+    type: one-to-many
+    by: onderwijsaanbiedergroepid
+    confidence: high
+    description: Links onderwijsaanbiedersgroep to relaties_onderwijsbestuur_onderwijsaanbiedersgroep
+      (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  onderwijsbestuur_to_relaties_onderwijsbestuur_onderwijsaanbiedersgroep:
+    from: onderwijsbestuur
+    to: relaties_onderwijsbestuur_onderwijsaanbiedersgroep
+    type: one-to-many
+    by: onderwijsbestuurid
+    confidence: high
+    description: Links onderwijsbestuur to relaties_onderwijsbestuur_onderwijsaanbiedersgroep
+      (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  onderwijsaanbieder_to_relaties_onderwijsbestuur_onderwijsaanbieder:
+    from: onderwijsaanbieder
+    to: relaties_onderwijsbestuur_onderwijsaanbieder
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to relaties_onderwijsbestuur_onderwijsaanbieder
+      (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  onderwijsbestuur_to_relaties_onderwijsbestuur_onderwijsaanbieder:
+    from: onderwijsbestuur
+    to: relaties_onderwijsbestuur_onderwijsaanbieder
+    type: one-to-many
+    by: onderwijsbestuurid
+    confidence: high
+    description: Links onderwijsbestuur to relaties_onderwijsbestuur_onderwijsaanbieder
+      (maaktDeelUitVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: maaktDeelUitVan
+      cardinality: 1:0..*
+  mbo_opleidingserkenning_to_examenlicentie:
+    from: mbo_opleidingserkenning
+    to: examenlicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links mbo_opleidingserkenning to examenlicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_examenlicentie:
+    from: onderwijsinstellingserkenning
+    to: examenlicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to examenlicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_examenlicentie
+  mbo_opleidingserkenning_to_mbo_onderwijslicentie:
+    from: mbo_opleidingserkenning
+    to: mbo_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links mbo_opleidingserkenning to mbo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  mbo_generieke_examen_onderdeel_erkenning_to_mbo_onderwijslicentie:
+    from: mbo_generieke_examen_onderdeel_erkenning
+    to: mbo_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links mbo_generieke_examen_onderdeel_erkenning to mbo_onderwijslicentie
+      (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_mbo_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: mbo_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to mbo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_mbo_onderwijslicentie
+  vo_vak_erkenning_to_mbo_sanctie:
+    from: vo_vak_erkenning
+    to: mbo_sanctie
+    type: one-to-one
+    by: licentiecode
+    confidence: high
+    description: Links vo_vak_erkenning to mbo_sanctie (isIngetrokkenDoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isIngetrokkenDoor
+      cardinality: 1:0..1
+  vavo_opleidings_erkenning_to_vavo_onderwijslicentie:
+    from: vavo_opleidings_erkenning
+    to: vavo_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links vavo_opleidings_erkenning to vavo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_vavo_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: vavo_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to vavo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_vavo_onderwijslicentie
+  vo_opleidings_erkenning_to_vo_onderwijslicentie:
+    from: vo_opleidings_erkenning
+    to: vo_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links vo_opleidings_erkenning to vo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  vo_groeps_erkenning_to_vo_onderwijslicentie:
+    from: vo_groeps_erkenning
+    to: vo_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links vo_groeps_erkenning to vo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  vestigingserkenning_to_vo_onderwijslicentie:
+    from: vestigingserkenning
+    to: vo_onderwijslicentie
+    type: many-to-many
+    by: vestigingscode
+    confidence: high
+    description: Links vestigingserkenning to vo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_vestigingserkenning_vo_onderwijslicentie
+  onderwijsinstellingserkenning_to_vo_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: vo_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to vo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_vo_onderwijslicentie
+  po_opleidings_erkenning_to_bo_onderwijslicentie:
+    from: po_opleidings_erkenning
+    to: bo_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links po_opleidings_erkenning to bo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_bo_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: bo_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to bo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_bo_onderwijslicentie
+  po_opleidings_erkenning_to_so_onderwijslicentie:
+    from: po_opleidings_erkenning
+    to: so_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links po_opleidings_erkenning to so_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_so_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: so_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to so_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_so_onderwijslicentie
+  po_opleidings_erkenning_to_vso_onderwijslicentie:
+    from: po_opleidings_erkenning
+    to: vso_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links po_opleidings_erkenning to vso_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_vso_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: vso_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to vso_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_vso_onderwijslicentie
+  ho_opleidings_erkenning_to_ho_onderwijslicentie:
+    from: ho_opleidings_erkenning
+    to: ho_onderwijslicentie
+    type: one-to-many
+    by: unieke_erkendeopleidingscode
+    confidence: high
+    description: Links ho_opleidings_erkenning to ho_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_ho_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: ho_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to ho_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_ho_onderwijslicentie
+  ho_onderwijslicentie_to_ho_onderwijsaccreditatie:
+    from: ho_onderwijslicentie
+    to: ho_onderwijsaccreditatie
+    type: many-to-many
+    by: licentiecode
+    confidence: high
+    description: Links ho_onderwijslicentie to ho_onderwijsaccreditatie (leidtTot)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: leidtTot
+      cardinality: ?:?
+      via_relation_table: relaties_ho_onderwijslicentie_ho_onderwijsaccreditatie
+  ho_onderwijslicentie_to_vestigingslicentie:
+    from: ho_onderwijslicentie
+    to: vestigingslicentie
+    type: one-to-many
+    by: licentiecode
+    confidence: high
+    description: Links ho_onderwijslicentie to vestigingslicentie (bepaaltLocatieBinnenKaderVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: bepaaltLocatieBinnenKaderVan
+      cardinality: 1:1..*
+  vestigingserkenning_to_vestigingslicentie:
+    from: vestigingserkenning
+    to: vestigingslicentie
+    type: many-to-many
+    by: vestigingscode
+    confidence: high
+    description: Links vestigingserkenning to vestigingslicentie (isPlaatsbepalendVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isPlaatsbepalendVoor
+      cardinality: ?:?
+      via_relation_table: relaties_vestigingserkenning_vestigingslicentie
+  nfo_opleidings_erkenning_to_nfo_onderwijslicentie:
+    from: nfo_opleidings_erkenning
+    to: nfo_onderwijslicentie
+    type: one-to-many
+    by: erkendeopleidingscode
+    confidence: high
+    description: Links nfo_opleidings_erkenning to nfo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 0..1:0..*
+  onderwijsinstellingserkenning_to_nfo_onderwijslicentie:
+    from: onderwijsinstellingserkenning
+    to: nfo_onderwijslicentie
+    type: many-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to nfo_onderwijslicentie (geeftToestemmingVoor)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: geeftToestemmingVoor
+      cardinality: 1..*:0..*
+      via_relation_table: relaties_onderwijsinstellingserkenning_nfo_onderwijslicentie
+  overgangen_to_vestigingserkenning:
+    from: overgangen
+    to: vestigingserkenning
+    type: many-to-one
+    by: vestigingscode
+    confidence: high
+    description: Links overgangen to vestigingserkenning (heeftBetrekkingOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftBetrekkingOp
+      cardinality: 0..*:1
+  vestigingserkenning_to_overgangen:
+    from: vestigingserkenning
+    to: overgangen
+    type: one-to-many
+    by: van_organisatieerkenningscode
+    confidence: high
+    description: Links vestigingserkenning to overgangen (isBetrokkenIn)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isBetrokkenIn
+      cardinality: 1:0..*
+  onderwijsinstellingserkenning_to_overgangen:
+    from: onderwijsinstellingserkenning
+    to: overgangen
+    type: one-to-many
+    by: van_organisatieerkenningscode
+    confidence: high
+    description: Links onderwijsinstellingserkenning to overgangen (isBetrokkenIn)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isBetrokkenIn
+      cardinality: 1:0..*
+  samenwerkingserkenning_to_overgangen:
+    from: samenwerkingserkenning
+    to: overgangen
+    type: one-to-many
+    by: van_organisatieerkenningscode
+    confidence: high
+    description: Links samenwerkingserkenning to overgangen (isBetrokkenIn)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isBetrokkenIn
+      cardinality: 1:0..*
+  onderwijsondersteunerserkenning_to_overgangen:
+    from: onderwijsondersteunerserkenning
+    to: overgangen
+    type: one-to-many
+    by: van_organisatieerkenningscode
+    confidence: high
+    description: Links onderwijsondersteunerserkenning to overgangen (isBetrokkenIn)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isBetrokkenIn
+      cardinality: 1:0..*
+  bevoegd_gezag_erkenning_to_overgangen:
+    from: bevoegd_gezag_erkenning
+    to: overgangen
+    type: one-to-many
+    by: van_organisatieerkenningscode
+    confidence: high
+    description: Links bevoegd_gezag_erkenning to overgangen (isBetrokkenIn)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isBetrokkenIn
+      cardinality: 1:0..*
+  vestigingserkenning_to_relaties_onderwijslocatiegebruik_vestigingserkenning:
+    from: vestigingserkenning
+    to: relaties_onderwijslocatiegebruik_vestigingserkenning
+    type: one-to-many
+    by: vestigingscode
+    confidence: high
+    description: Links vestigingserkenning to relaties_onderwijslocatiegebruik_vestigingserkenning
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:0..*
+  vestigingserkenning_to_relaties_onderwijsinstellingserkenning_vestigingserkenning:
+    from: vestigingserkenning
+    to: relaties_onderwijsinstellingserkenning_vestigingserkenning
+    type: one-to-one
+    by: vestigingscode
+    confidence: high
+    description: Links vestigingserkenning to relaties_onderwijsinstellingserkenning_vestigingserkenning
+      (wordtAfgegevenBinnenContextVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAfgegevenBinnenContextVan
+      cardinality: '1:1'
+  onderwijsinstellingserkenning_to_relaties_onderwijsinstellingserkenning_vestigingserkenning:
+    from: onderwijsinstellingserkenning
+    to: relaties_onderwijsinstellingserkenning_vestigingserkenning
+    type: one-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to relaties_onderwijsinstellingserkenning_vestigingserkenning
+      (wordtAfgegevenBinnenContextVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAfgegevenBinnenContextVan
+      cardinality: 1:1..*
+  overgangen_to_onderwijsinstellingserkenning:
+    from: overgangen
+    to: onderwijsinstellingserkenning
+    type: many-to-one
+    by: oie_code
+    confidence: high
+    description: Links overgangen to onderwijsinstellingserkenning (heeftBetrekkingOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftBetrekkingOp
+      cardinality: 0..*:1
+  onderwijsondersteunerserkenning_to_onderwijsinstellingserkenning:
+    from: onderwijsondersteunerserkenning
+    to: onderwijsinstellingserkenning
+    type: one-to-one
+    by: onderwijsondersteunerserkenningscode
+    confidence: high
+    description: Links onderwijsondersteunerserkenning to onderwijsinstellingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..1
+  overgangen_to_samenwerkingserkenning:
+    from: overgangen
+    to: samenwerkingserkenning
+    type: many-to-one
+    by: samenwerkingsverbandnummer
+    confidence: high
+    description: Links overgangen to samenwerkingserkenning (heeftBetrekkingOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftBetrekkingOp
+      cardinality: 0..*:1
+  vestigingserkenning_to_relatie_samenwerkingserkenning_vestigingserkenning:
+    from: vestigingserkenning
+    to: relatie_samenwerkingserkenning_vestigingserkenning
+    type: one-to-many
+    by: vestigingscode
+    confidence: high
+    description: Links vestigingserkenning to relatie_samenwerkingserkenning_vestigingserkenning
+      (wordtAfgegevenBinnenContextVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAfgegevenBinnenContextVan
+      cardinality: 1:0..*
+  samenwerkingserkenning_to_relatie_samenwerkingserkenning_vestigingserkenning:
+    from: samenwerkingserkenning
+    to: relatie_samenwerkingserkenning_vestigingserkenning
+    type: one-to-many
+    by: samenwerkingsverbandnummer
+    confidence: high
+    description: Links samenwerkingserkenning to relatie_samenwerkingserkenning_vestigingserkenning
+      (wordtAfgegevenBinnenContextVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAfgegevenBinnenContextVan
+      cardinality: 1:0..*
+  onderwijsinstellingserkenning_to_relatie_samenwerkingserkenning_onderwijsinstellingserkenning:
+    from: onderwijsinstellingserkenning
+    to: relatie_samenwerkingserkenning_onderwijsinstellingserkenning
+    type: one-to-one
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to relatie_samenwerkingserkenning_onderwijsinstellingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..1
+  samenwerkingserkenning_to_relatie_samenwerkingserkenning_onderwijsinstellingserkenning:
+    from: samenwerkingserkenning
+    to: relatie_samenwerkingserkenning_onderwijsinstellingserkenning
+    type: one-to-one
+    by: samenwerkingsverbandnummer
+    confidence: high
+    description: Links samenwerkingserkenning to relatie_samenwerkingserkenning_onderwijsinstellingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..1
+  samenwerkingserkenning_to_regio_erkende_samenwerking:
+    from: samenwerkingserkenning
+    to: regio_erkende_samenwerking
+    type: one-to-many
+    by: samenwerkingsverbandnummer
+    confidence: high
+    description: Links samenwerkingserkenning to regio_erkende_samenwerking (isWerkzaamIn)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isWerkzaamIn
+      cardinality: 1:0..*
+  overgangen_to_onderwijsondersteunerserkenning:
+    from: overgangen
+    to: onderwijsondersteunerserkenning
+    type: many-to-one
+    by: onderwijsondersteunerserkenningscode
+    confidence: high
+    description: Links overgangen to onderwijsondersteunerserkenning (heeftBetrekkingOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftBetrekkingOp
+      cardinality: 0..*:1
+  vestigingserkenning_to_relatie_onderwijsondersteunerserkenning_vestigingserkenning:
+    from: vestigingserkenning
+    to: relatie_onderwijsondersteunerserkenning_vestigingserkenning
+    type: one-to-one
+    by: vestigingscode
+    confidence: high
+    description: Links vestigingserkenning to relatie_onderwijsondersteunerserkenning_vestigingserkenning
+      (wordtAfgegevenBinnenContextVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAfgegevenBinnenContextVan
+      cardinality: '1:1'
+  onderwijsondersteunerserkenning_to_relatie_onderwijsondersteunerserkenning_vestigingserkenning:
+    from: onderwijsondersteunerserkenning
+    to: relatie_onderwijsondersteunerserkenning_vestigingserkenning
+    type: one-to-many
+    by: onderwijsondersteunerserkenningscode
+    confidence: high
+    description: Links onderwijsondersteunerserkenning to relatie_onderwijsondersteunerserkenning_vestigingserkenning
+      (wordtAfgegevenBinnenContextVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtAfgegevenBinnenContextVan
+      cardinality: 1:0..*
+  onderwijsinstellingserkenning_to_relatie_onderwijsondersteunerserkenning_onderwijsinstellingserkenning:
+    from: onderwijsinstellingserkenning
+    to: relatie_onderwijsondersteunerserkenning_onderwijsinstellingserkenning
+    type: one-to-one
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to relatie_onderwijsondersteunerserkenning_onderwijsinstellingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..1
+  onderwijsondersteunerserkenning_to_relatie_onderwijsondersteunerserkenning_onderwijsinstellingserkenning:
+    from: onderwijsondersteunerserkenning
+    to: relatie_onderwijsondersteunerserkenning_onderwijsinstellingserkenning
+    type: one-to-many
+    by: onderwijsondersteunerserkenningscode
+    confidence: high
+    description: Links onderwijsondersteunerserkenning to relatie_onderwijsondersteunerserkenning_onderwijsinstellingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..*
+  samenwerkingserkenning_to_relaties_samenwerkingserkenning_onderwijsondersteunerserkenning:
+    from: samenwerkingserkenning
+    to: relaties_samenwerkingserkenning_onderwijsondersteunerserkenning
+    type: one-to-many
+    by: samenwerkingsverbandnummer
+    confidence: high
+    description: Links samenwerkingserkenning to relaties_samenwerkingserkenning_onderwijsondersteunerserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..*
+  onderwijsondersteunerserkenning_to_relaties_samenwerkingserkenning_onderwijsondersteunerserkenning:
+    from: onderwijsondersteunerserkenning
+    to: relaties_samenwerkingserkenning_onderwijsondersteunerserkenning
+    type: one-to-many
+    by: onderwijsondersteunerserkenningscode
+    confidence: high
+    description: Links onderwijsondersteunerserkenning to relaties_samenwerkingserkenning_onderwijsondersteunerserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..*
+  ho_onderwijslicentie_to_ho_relaties_onderwijslicenties:
+    from: ho_onderwijslicentie
+    to: ho_relaties_onderwijslicenties
+    type: one-to-one
+    by: van_licentiecode
+    confidence: high
+    description: Links ho_onderwijslicentie to ho_relaties_onderwijslicenties (HoortBij)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: HoortBij
+      cardinality: 0..1:1
+  overgangen_to_bevoegd_gezag_erkenning:
+    from: overgangen
+    to: bevoegd_gezag_erkenning
+    type: many-to-one
+    by: bge_code
+    confidence: high
+    description: Links overgangen to bevoegd_gezag_erkenning (heeftBetrekkingOp)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftBetrekkingOp
+      cardinality: 0..*:1
+  vestigingserkenning_to_formeel_instellingsadres:
+    from: vestigingserkenning
+    to: formeel_instellingsadres
+    type: one-to-many
+    by: vestigingscode
+    confidence: high
+    description: Links vestigingserkenning to formeel_instellingsadres (heeftFormeelAdres)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftFormeelAdres
+      cardinality: 1:0..*
+  onderwijsinstellingserkenning_to_formeel_instellingsadres:
+    from: onderwijsinstellingserkenning
+    to: formeel_instellingsadres
+    type: one-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to formeel_instellingsadres (heeftFormeelAdres)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftFormeelAdres
+      cardinality: 1:0..*
+  bevoegd_gezag_erkenning_to_relatie_bevoegd_gezag_erkenning_samenwerkingserkenning:
+    from: bevoegd_gezag_erkenning
+    to: relatie_bevoegd_gezag_erkenning_samenwerkingserkenning
+    type: one-to-many
+    by: bge_code
+    confidence: high
+    description: Links bevoegd_gezag_erkenning to relatie_bevoegd_gezag_erkenning_samenwerkingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..*
+  onderwijsondersteunerserkenning_to_relatie_bevoegd_gezag_erkenning_onderwijsondersteunerserkenning:
+    from: onderwijsondersteunerserkenning
+    to: relatie_bevoegd_gezag_erkenning_onderwijsondersteunerserkenning
+    type: one-to-many
+    by: onderwijsondersteunerserkenningscode
+    confidence: high
+    description: Links onderwijsondersteunerserkenning to relatie_bevoegd_gezag_erkenning_onderwijsondersteunerserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..*
+  bevoegd_gezag_erkenning_to_relatie_bevoegd_gezag_erkenning_onderwijsondersteunerserkenning:
+    from: bevoegd_gezag_erkenning
+    to: relatie_bevoegd_gezag_erkenning_onderwijsondersteunerserkenning
+    type: one-to-many
+    by: bge_code
+    confidence: high
+    description: Links bevoegd_gezag_erkenning to relatie_bevoegd_gezag_erkenning_onderwijsondersteunerserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..*
+  onderwijsinstellingserkenning_to_relatie_bevoegd_gezag_erkenning_onderwijsinstellingserkenning:
+    from: onderwijsinstellingserkenning
+    to: relatie_bevoegd_gezag_erkenning_onderwijsinstellingserkenning
+    type: one-to-one
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to relatie_bevoegd_gezag_erkenning_onderwijsinstellingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..1
+  bevoegd_gezag_erkenning_to_relatie_bevoegd_gezag_erkenning_onderwijsinstellingserkenning:
+    from: bevoegd_gezag_erkenning
+    to: relatie_bevoegd_gezag_erkenning_onderwijsinstellingserkenning
+    type: one-to-many
+    by: bge_code
+    confidence: high
+    description: Links bevoegd_gezag_erkenning to relatie_bevoegd_gezag_erkenning_onderwijsinstellingserkenning
+      (isOnderdeelVan)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: isOnderdeelVan
+      cardinality: 1:0..*
+  onderwijsaanbieder_to_relaties_onderwijsaanbieders_onderwijsinstellingserkenning:
+    from: onderwijsaanbieder
+    to: relaties_onderwijsaanbieders_onderwijsinstellingserkenning
+    type: one-to-many
+    by: onderwijsaanbiederid
+    confidence: high
+    description: Links onderwijsaanbieder to relaties_onderwijsaanbieders_onderwijsinstellingserkenning
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:1..*
+  onderwijsinstellingserkenning_to_relaties_onderwijsaanbieders_onderwijsinstellingserkenning:
+    from: onderwijsinstellingserkenning
+    to: relaties_onderwijsaanbieders_onderwijsinstellingserkenning
+    type: one-to-many
+    by: oie_code
+    confidence: high
+    description: Links onderwijsinstellingserkenning to relaties_onderwijsaanbieders_onderwijsinstellingserkenning
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: 1:1..*
+  onderwijsbestuur_to_relaties_onderwijsbestuur_bevoegd_gezag_erkenning:
+    from: onderwijsbestuur
+    to: relaties_onderwijsbestuur_bevoegd_gezag_erkenning
+    type: one-to-one
+    by: onderwijsbestuurid
+    confidence: high
+    description: Links onderwijsbestuur to relaties_onderwijsbestuur_bevoegd_gezag_erkenning
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: '1:1'
+  bevoegd_gezag_erkenning_to_relaties_onderwijsbestuur_bevoegd_gezag_erkenning:
+    from: bevoegd_gezag_erkenning
+    to: relaties_onderwijsbestuur_bevoegd_gezag_erkenning
+    type: one-to-one
+    by: bge_code
+    confidence: high
+    description: Links bevoegd_gezag_erkenning to relaties_onderwijsbestuur_bevoegd_gezag_erkenning
+      (wordtErkendAls)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: wordtErkendAls
+      cardinality: '1:1'
+  aangeboden_mbo_opleidingsonderdeel_to_aangeboden_mbo_opleidingsonderdeel_cohort:
+    from: aangeboden_mbo_opleidingsonderdeel
+    to: aangeboden_mbo_opleidingsonderdeel_cohort
+    type: many-to-many
+    by: aangeboden_opleidingcode
+    confidence: high
+    description: Links aangeboden_mbo_opleidingsonderdeel to aangeboden_mbo_opleidingsonderdeel_cohort
+      (heeftAanmeldingscohort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftAanmeldingscohort
+      cardinality: 0..*:0..*
+      via_relation_table: relaties_aangeboden_mbo_opleidingsonderdeel_aangeboden_mbo_opleidingsonderdeel_cohort
+  aangeboden_ho_opleiding_to_aangeboden_ho_opleiding_cohort:
+    from: aangeboden_ho_opleiding
+    to: aangeboden_ho_opleiding_cohort
+    type: many-to-many
+    by: aangeboden_opleidingcode
+    confidence: high
+    description: Links aangeboden_ho_opleiding to aangeboden_ho_opleiding_cohort (heeftAanmeldingscohort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftAanmeldingscohort
+      cardinality: 0..*:0..*
+      via_relation_table: relaties_aangeboden_ho_opleiding_aangeboden_ho_opleiding_cohort
+  aangeboden_nfo_opleiding_to_aangeboden_nfo_opleiding_cohort:
+    from: aangeboden_nfo_opleiding
+    to: aangeboden_nfo_opleiding_cohort
+    type: many-to-many
+    by: aangeboden_opleidingcode
+    confidence: high
+    description: Links aangeboden_nfo_opleiding to aangeboden_nfo_opleiding_cohort
+      (heeftAanmeldingscohort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftAanmeldingscohort
+      cardinality: 0..*:0..*
+      via_relation_table: relaties_aangeboden_nfo_opleiding_aangeboden_nfo_opleiding_cohort
+  aangeboden_ho_opleidingsonderdeel_to_aangeboden_ho_opleidingsonderdeel_cohort:
+    from: aangeboden_ho_opleidingsonderdeel
+    to: aangeboden_ho_opleidingsonderdeel_cohort
+    type: many-to-many
+    by: aangeboden_opleidingcode
+    confidence: high
+    description: Links aangeboden_ho_opleidingsonderdeel to aangeboden_ho_opleidingsonderdeel_cohort
+      (heeftAanmeldingscohort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftAanmeldingscohort
+      cardinality: 0..*:0..*
+      via_relation_table: relaties_aangeboden_ho_opleidingsonderdeel_aangeboden_ho_opleidingsonderdeel_cohort
+  aangeboden_vavo_opleiding_to_aangeboden_vavo_opleiding_cohort:
+    from: aangeboden_vavo_opleiding
+    to: aangeboden_vavo_opleiding_cohort
+    type: many-to-many
+    by: aangeboden_opleidingcode
+    confidence: high
+    description: Links aangeboden_vavo_opleiding to aangeboden_vavo_opleiding_cohort
+      (heeftAanmeldingscohort)
+    metadata:
+      category: data_relationship
+      importance: primary
+      relation_type: heeftAanmeldingscohort
+      cardinality: 0..*:0..*
+      via_relation_table: relaties_aangeboden_vavo_opleiding_aangeboden_vavo_opleiding_cohort
+

@@ -13,6 +13,21 @@
 #'   - connections: Details about each connection in the path
 #'
 #' @keywords internal
+#' Find the optimal path to connect datasets
+#'
+#' This function finds the optimal path to connect multiple datasets based on
+#' predefined relations stored in YAML. It uses graph theory to determine the best
+#' possible connections between datasets.
+#'
+#' @param dataset_names Character vector with names of datasets to connect
+#' @param relations List of relation definitions from the YAML configuration
+#' @param verbose Logical indicating whether to display progress messages
+#'
+#' @return A list with path information, including:
+#'   - path: The sequence of datasets to visit
+#'   - connections: Details about each connection in the path
+#'
+#' @keywords internal
 find_optimal_path <- function(dataset_names, relations, verbose = TRUE) {
   # Create an empty graph
   g <- igraph::make_empty_graph(n = 0, directed = FALSE)
@@ -40,7 +55,11 @@ find_optimal_path <- function(dataset_names, relations, verbose = TRUE) {
         # Store relation details for the edge
         edge_id <- igraph::ecount(g)
         igraph::E(g)$relation_name[edge_id] <- rel_name
-        igraph::E(g)$weight[edge_id] <- ifelse(rel$confidence == "high", 1, 2)  # Weight by confidence
+
+        # Set weight based on confidence
+        confidence_level <- ifelse(is.null(rel$confidence), "medium", rel$confidence)
+        igraph::E(g)$weight[edge_id] <- ifelse(confidence_level == "high", 1, 2)
+
         # Store directly which vertices this edge connects for later reference
         igraph::E(g)$from_dataset[edge_id] <- rel$from
         igraph::E(g)$to_dataset[edge_id] <- rel$to
@@ -125,11 +144,11 @@ find_optimal_path <- function(dataset_names, relations, verbose = TRUE) {
 #' Execute joins between datasets based on a connection path
 #'
 #' This function performs joins between datasets following the optimal path
-#' determined by find_optimal_path().
+#' determined by find_optimal_path(), using relations defined in YAML.
 #'
 #' @param tibbles List of tibbles to join
 #' @param path_info Path information as returned by find_optimal_path()
-#' @param relations List of relation definitions
+#' @param relations List of relation definitions from the YAML configuration
 #' @param verbose Logical indicating whether to display progress messages
 #' @param reference_date Optional date to filter records by
 #'
@@ -195,22 +214,50 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
       next
     }
 
-    # Get the relationship information
-    rel <- conn$relationship
+    # Get the relationship information - this needs to be adapted for the YAML structure
+    rel_key <- NULL
+
+    # Find the relation in the relations list that matches these datasets
+    for (key in names(relations)) {
+      rel <- relations[[key]]
+      if ((rel$from == from_dataset && rel$to == next_dataset) ||
+          (rel$from == next_dataset && rel$to == from_dataset)) {
+        rel_key <- key
+        break
+      }
+    }
+
+    if (is.null(rel_key)) {
+      warning("Could not find relation definition for ", from_dataset, " -> ", next_dataset)
+      next
+    }
+
+    rel <- relations[[rel_key]]
 
     # Format joining fields for display
-    if (is.null(names(rel$by))) {
-      by_str <- paste(rel$by, collapse = ", ")
-    } else {
-      by_parts <- character(length(rel$by))
-      for (i in seq_along(rel$by)) {
-        if (names(rel$by)[i] == "") {
-          by_parts[i] <- rel$by[i]
+    by_fields <- rel$by
+
+    # Check if by_fields is properly structured
+    if (is.null(by_fields)) {
+      warning("No joining fields defined for relation between ", from_dataset, " and ", next_dataset)
+      next
+    }
+
+    # Convert by_fields to string representation for display
+    if (is.character(by_fields) && !is.null(names(by_fields)) && any(names(by_fields) != "")) {
+      # Named character vector with different field names
+      by_parts <- character(length(by_fields))
+      for (i in seq_along(by_fields)) {
+        if (names(by_fields)[i] == "") {
+          by_parts[i] <- by_fields[i]
         } else {
-          by_parts[i] <- paste0(names(rel$by)[i], " = ", rel$by[i])
+          by_parts[i] <- paste0(names(by_fields)[i], " = ", by_fields[i])
         }
       }
       by_str <- paste(by_parts, collapse = ", ")
+    } else {
+      # Simple vector of field names (same in both tables)
+      by_str <- paste(by_fields, collapse = ", ")
     }
 
     if (verbose) {
@@ -218,11 +265,10 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     }
 
     # Determine which fields to use based on the direction
-    by_fields <- rel$by
     if (rel$from != from_dataset) {
       # If the relation is defined in the opposite direction of our join,
       # we need to swap the names and values for named fields
-      if (!is.null(names(by_fields)) && any(names(by_fields) != "")) {
+      if (is.character(by_fields) && !is.null(names(by_fields)) && any(names(by_fields) != "")) {
         rev_by_fields <- setNames(names(by_fields), unname(by_fields))
         # Keep unnamed fields as is
         for (i in seq_along(by_fields)) {
@@ -465,10 +511,11 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 }
 
 
-#' Join datasets using predefined relations
+#' Join datasets using predefined relations from YAML configuration
 #'
-#' This function automatically joins multiple datasets using predefined relations.
-#' It finds the optimal path between datasets and performs the joins accordingly.
+#' This function joins multiple datasets based on predefined relations stored in the
+#' RIO relations YAML file. It finds the optimal path between datasets and performs
+#' the joins accordingly.
 #'
 #' @param ... Named tibbles to join or character vector of dataset names to load.
 #' @param by_names Logical indicating whether the arguments are dataset names
@@ -543,10 +590,14 @@ rio_join_datasets <- function(..., by_names = FALSE, relations = NULL,
 
   # Load relations if not provided
   if (is.null(relations)) {
-    relations <- rio_load_relations()
+    rel_data <- rio_load_relations()
+    relations <- rel_data$relations
     if (length(relations) == 0) {
-      stop("No relations defined. Please define relations first.")
+      stop("No relations defined in the YAML configuration. Please define relations first.")
     }
+  } else if (is.list(relations) && !is.null(relations$relations)) {
+    # If complete relations structure is provided, extract just the relations part
+    relations <- relations$relations
   }
 
   # Check for unnamed parameters when not using by_names
@@ -651,149 +702,40 @@ rio_get_dataset_metadata <- function(datasets, dataset_name) {
   return(metadata)
 }
 
-#' Create a new relation for the RIO structure
-#'
-#' This function creates a new relation definition between two datasets.
-#'
-#' @param from Name of the source dataset.
-#' @param to Name of the target dataset.
-#' @param by A character vector of joining fields. If these fields have the same name in both datasets,
-#'        provide them as a character vector. If they have different names, provide a named vector
-#'        where names correspond to fields in the 'from' dataset and values to fields in the 'to' dataset.
-#' @param type Type of relation (one-to-one, one-to-many, many-to-one, many-to-many). Default is "one-to-many".
-#' @param confidence Confidence of the relation (high, medium). Default is "high".
-#' @param description Optional description of the relation.
-#'
-#' @return A relation object.
-#'
-#' @examples
-#' # Same field names in both datasets
-#' relation1 <- rio_create_relation(
-#'   from = "dataset1",
-#'   to = "dataset2",
-#'   by = "COMMON_ID"
-#' )
-#'
-#' # Different field names
-#' relation2 <- rio_create_relation(
-#'   from = "dataset1",
-#'   to = "dataset2",
-#'   by = c("ID_FROM" = "ID_TO")
-#' )
-#'
-#' # Multiple fields
-#' relation3 <- rio_create_relation(
-#'   from = "dataset1",
-#'   to = "dataset2",
-#'   by = c("FIELD1", "FIELD2")  # Same names in both datasets
-#' )
-#'
-#' # Multiple fields with different names
-#' relation4 <- rio_create_relation(
-#'   from = "dataset1",
-#'   to = "dataset2",
-#'   by = c("ID1" = "ID_A", "ID2" = "ID_B")
-#' )
-#'
-#' @keywords internal
-rio_create_relation <- function(from, to, by, type = "one-to-many",
-                                confidence = "high", description = NULL) {
-  # Check if 'by' is properly specified
-  if (!is.character(by) || length(by) == 0) {
-    stop("'by' must be a character vector specifying joining fields")
-  }
 
-  # Create a new relation
-  relation <- list(
-    from = from,
-    to = to,
-    type = type,
-    by = by,  # Store the original 'by' for user reference
-    confidence = confidence
-  )
-
-  # Add description if present
-  if (!is.null(description)) {
-    relation$description <- description
-  }
-
-  return(relation)
-}
-
-#' Add a relation to a list of RIO relations
-#'
-#' This function adds a relation to a list of RIO relations.
-#'
-#' @param relations The list of RIO relations.
-#' @param relation The relation to add or a list with arguments for rio_create_relation().
-#'
-#' @return The updated list of RIO relations.
-#'
-#' @keywords internal
-rio_add_relation <- function(relations, relation) {
-  # If relation is not a list with the required fields, assume it's a relation created by rio_create_relation
-  if (!is.list(relation) || !all(c("from", "to", "by") %in% names(relation))) {
-    stop("relation must be a relation object created with rio_create_relation()")
-  }
-
-  # Generate a key for the relation
-  relation_key <- paste(relation$from, "to", relation$to)
-
-  # Check if the relation already exists
-  if (relation_key %in% names(relations)) {
-    warning("A relation between '", relation$from, "' and '", relation$to,
-            "' already exists and will be overwritten")
-  }
-
-  # Add the relation to the list
-  relations[[relation_key]] <- relation
-
-  return(relations)
-}
-
-
-#' Remove a relation from a list of RIO relations
-#'
-#' This function removes a relation from a list of RIO relations.
-#'
-#' @param relations The list of RIO relations.
-#' @param from Name of the source dataset.
-#' @param to Name of the target dataset.
-#'
-#' @return The updated list of RIO relations.
-#'
-#' @keywords internal
-rio_remove_relation <- function(relations, from, to) {
-  # Generate the key for the relation
-  relation_key <- paste(from, "to", to)
-
-  # Check if the relation exists
-  if (!relation_key %in% names(relations)) {
-    warning("Relation between '", from, "' and '", to, "' not found")
-    return(relations)
-  }
-
-  # Remove the relation
-  relations[[relation_key]] <- NULL
-
-  return(relations)
-}
 
 #' List all relations in the RIO structure
 #'
-#' This function provides an overview of all defined relations.
+#' This function provides an overview of all defined relations in the RIO package.
 #'
-#' @param relations The list of RIO relations.
 #' @param as_dataframe Logical indicating whether the result should be returned as a dataframe.
 #'        Default is TRUE.
+#' @param relations Optional pre-loaded relations structure. If NULL, relations will be
+#'        automatically loaded from the default or user-specific YAML file.
 #'
 #' @return A dataframe or list with all relations.
 #'
-#' @keywords internal
-rio_list_relations <- function(relations, as_dataframe = TRUE) {
-  if (length(relations) == 0) {
+#' @examples
+#' \dontrun{
+#' # Get all relations as a dataframe
+#' relations_df <- rio_list_relations()
+#'
+#' # Get relations as a list structure
+#' relations_list <- rio_list_relations(as_dataframe = FALSE)
+#' }
+#'
+#' @export
+rio_list_relations <- function(as_dataframe = TRUE, relations = NULL) {
+  # Load relations if not provided
+  if (is.null(relations)) {
+    relations <- rio_load_relations()
+  }
+
+  # Check if relations structure exists and contains relations
+  if (is.null(relations$relations) || length(relations$relations) == 0) {
     if (as_dataframe) {
       return(data.frame(
+        relation_key = character(0),
         from = character(0),
         to = character(0),
         type = character(0),
@@ -811,14 +753,11 @@ rio_list_relations <- function(relations, as_dataframe = TRUE) {
     # Convert to dataframe
     relations_list <- list()
 
-    for (rel_name in names(relations)) {
-      rel <- relations[[rel_name]]
+    for (rel_name in names(relations$relations)) {
+      rel <- relations$relations[[rel_name]]
 
       # Convert 'by' to a string representation
-      if (is.null(names(rel$by))) {
-        # Unnamed vector, all fields have the same name in both datasets
-        by_str <- paste(rel$by, collapse = ", ")
-      } else {
+      if (is.character(rel$by) && !is.null(names(rel$by)) && any(names(rel$by) != "")) {
         # Named vector, fields have different names
         by_parts <- character(length(rel$by))
         for (i in seq_along(rel$by)) {
@@ -831,67 +770,178 @@ rio_list_relations <- function(relations, as_dataframe = TRUE) {
           }
         }
         by_str <- paste(by_parts, collapse = ", ")
+      } else {
+        # Unnamed vector or list
+        by_str <- paste(rel$by, collapse = ", ")
+      }
+
+      # Extract metadata if any
+      metadata_str <- NA
+      if (!is.null(rel$metadata)) {
+        if (requireNamespace("jsonlite", quietly = TRUE)) {
+          metadata_str <- jsonlite::toJSON(rel$metadata, auto_unbox = TRUE)
+        } else {
+          metadata_str <- "Metadata present (install jsonlite package to view)"
+        }
       }
 
       relations_list[[length(relations_list) + 1]] <- data.frame(
+        relation_key = rel_name,
         from = rel$from,
         to = rel$to,
-        type = rel$type,
+        type = ifelse(is.null(rel$type), "one-to-many", rel$type),
         by = by_str,
-        confidence = rel$confidence,
+        confidence = ifelse(is.null(rel$confidence), "medium", rel$confidence),
         description = ifelse(is.null(rel$description), NA, rel$description),
+        has_metadata = !is.null(rel$metadata),
+        metadata = metadata_str,
         stringsAsFactors = FALSE
       )
     }
 
-    relations_df <- do.call(rbind, relations_list)
-    return(relations_df)
+    if (length(relations_list) > 0) {
+      relations_df <- do.call(rbind, relations_list)
+      return(relations_df)
+    } else {
+      return(data.frame())
+    }
   } else {
-    # Return as is
-    return(relations)
+    # Return just the relations part of the structure
+    return(relations$relations)
   }
 }
 
-#' Load the RIO relations from a YAML file
+#' Export default relation definitions to a user-specific version
+#'
+#' This function exports the default relation definitions from the package to
+#' a user-specific location for customization. This allows users to modify the
+#' RIO relation definitions without changing the package files.
+#'
+#' @param overwrite Logical value indicating whether to overwrite existing files.
+#'        Default is FALSE for safety.
+#' @param destination Path where to save the file. Default is NULL, which will use
+#'        the standard user data directory as returned by get_rio_data_dir().
+#' @param quiet Logical value indicating whether to suppress informational messages.
+#'        Default is FALSE.
+#'
+#' @return Path to the exported file (invisibly).
+#'
+#' @details
+#' The function copies the default relations YAML file from the package to the user's
+#' data directory, allowing for customization without modifying the package itself.
+#' Once exported, the user can edit the YAML file to add, modify, or remove relations.
+#'
+#' By default, the rio_load_relations() function will automatically detect and use the
+#' user-specific version if it exists, providing a seamless way to override the default
+#' relations.
+#'
+#' @examples
+#' \dontrun{
+#' # Export default relations for customization
+#' rio_export_default_relations()
+#'
+#' # Export and overwrite existing user definitions
+#' rio_export_default_relations(overwrite = TRUE)
+#'
+#' # Export to a specific location
+#' rio_export_default_relations(destination = "~/my_project/rio_relations.yaml")
+#' }
+#'
+#' @seealso
+#' \code{\link{rio_load_relations}} for loading relation definitions.
+#' \code{\link{get_rio_data_dir}} for information about the user data directory.
+#'
+#' @export
+rio_export_default_relations <- function(overwrite = FALSE, destination = NULL,
+                                         quiet = FALSE) {
+  # Determine the destination path
+  if (is.null(destination)) {
+    # Path to the user directory
+    user_dir <- get_rio_data_dir()
+    user_file <- file.path(user_dir, "rio_relations.yaml")
+  } else {
+    user_file <- destination
+
+    # Create directory if it doesn't exist
+    dest_dir <- dirname(destination)
+    if (!dir.exists(dest_dir)) {
+      dir.create(dest_dir, recursive = TRUE)
+    }
+  }
+
+  # Check if the file already exists
+  if (file.exists(user_file) && !overwrite) {
+    stop("User-specific version already exists. Use overwrite = TRUE to overwrite.")
+  }
+
+  # Path to default file
+  default_file <- system.file("extdata", "rio_relations.yaml", package = "rioRapi")
+
+  # Check if the default file exists
+  if (default_file == "") {
+    stop("Default relations file not found in the package.")
+  }
+
+  # Copy the file
+  copy_success <- file.copy(default_file, user_file, overwrite = overwrite)
+
+  if (!copy_success) {
+    stop("Failed to copy the relations file. Check write permissions.")
+  }
+
+  if (!quiet) {
+    message("Default relation definitions exported to: ", user_file)
+  }
+
+  return(invisible(user_file))
+}
+
+
+#' Load RIO relations from a YAML file
 #'
 #' This function loads the RIO relations between tables from a YAML file.
 #' If the file doesn't exist, an empty relation object is returned.
 #'
-#' @param file_path Path to the YAML file. Default is 'inst/extdata/rio_relations.yaml'.
+#' @param file_path Path to the YAML file. Default is the package's built-in relations file.
 #'
-#' @return A list with the RIO relations.
+#' @return A list with the RIO relations structure.
 #'
-#' @keywords internal
+#' @export
 rio_load_relations <- function(file_path = system.file("extdata", "rio_relations.yaml", package = "rioRapi")) {
   # Check if the file exists
   if (!file.exists(file_path)) {
     message("No relations file found at ", file_path, ". An empty relation object will be returned.")
-    return(list())
+    return(list(metadata = list(version = "1.0.0", created = Sys.Date()), relations = list()))
   }
 
-  # Load YAML file
+  # Check if yaml package is installed
   if (!requireNamespace("yaml", quietly = TRUE)) {
     stop("Package 'yaml' is required to load the relations")
   }
 
+  # Load YAML file
   yaml_data <- yaml::read_yaml(file_path)
+
+  # Add current time if loading from a different file than the default
+  if (file_path != system.file("extdata", "rio_relations.yaml", package = "rioRapi")) {
+    yaml_data$metadata$last_loaded <- Sys.time()
+  }
 
   return(yaml_data)
 }
 
-#' Save the RIO relations as a YAML file
+#' Save RIO relations to a YAML file
 #'
-#' This function saves the RIO relations as a YAML file.
+#' This function saves the RIO relations structure to a YAML file.
 #'
-#' @param relations The RIO relations.
+#' @param relations The RIO relations structure.
 #' @param file_path Path to the YAML file where the relations will be saved.
-#'        Default is 'inst/extdata/rio_relations.yaml'.
 #' @param create_dir Logical indicating whether to create the directory if it doesn't exist.
 #'        Default is TRUE.
 #'
 #' @return Invisibly the name of the file where the relations were saved.
 #'
-#' @keywords internal
+#' @export
 rio_save_relations <- function(relations, file_path = "inst/extdata/rio_relations.yaml", create_dir = TRUE) {
   # Check if the directory exists and create it if necessary
   dir_path <- dirname(file_path)
@@ -904,6 +954,13 @@ rio_save_relations <- function(relations, file_path = "inst/extdata/rio_relation
     stop("Package 'yaml' is required to save the relations")
   }
 
+  # Update metadata
+  if (is.null(relations$metadata)) {
+    relations$metadata <- list()
+  }
+
+  relations$metadata$last_modified <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+
   # Save relations as YAML
   yaml::write_yaml(relations, file_path)
 
@@ -912,90 +969,7 @@ rio_save_relations <- function(relations, file_path = "inst/extdata/rio_relation
   return(invisible(file_path))
 }
 
-#' Export RIO relations to a CSV file
-#'
-#' This function exports RIO relations to a CSV file.
-#'
-#' @param relations The list of RIO relations.
-#' @param file_path Path to the CSV file where the relations will be saved.
-#'
-#' @return Invisibly the name of the file where the relations were saved.
-#'
-#' @keywords internal
-rio_export_relations_csv <- function(relations, file_path = "rio_relations.csv") {
-  # Convert relations to dataframe
-  relations_df <- rio_list_relations(relations, as_dataframe = TRUE)
 
-  # Write to CSV
-  utils::write.csv(relations_df, file_path, row.names = FALSE)
-
-  message("RIO relations exported to CSV: ", file_path)
-
-  return(invisible(file_path))
-}
-
-#' Import relations from a CSV file
-#'
-#' This function imports relations from a CSV file and returns a list of relations.
-#'
-#' @param file_path Path to the CSV file with the relations.
-#'
-#' @return A list of RIO relations.
-#'
-#' @keywords internal
-rio_import_relations_csv <- function(file_path) {
-  # Read the CSV file
-  relations_df <- utils::read.csv(file_path, stringsAsFactors = FALSE)
-
-  # Initialize an empty list
-  relations <- list()
-
-  # Add each relation to the list
-  for (i in 1:nrow(relations_df)) {
-    rel <- relations_df[i, ]
-
-    # Parse 'by' string into a named vector
-    by_parts <- strsplit(rel$by, ",\\s*")[[1]]
-    by_vector <- character(0)
-
-    for (part in by_parts) {
-      # Check if the part has format "field1 = field2"
-      if (grepl("\\s*=\\s*", part)) {
-        field_parts <- strsplit(part, "\\s*=\\s*")[[1]]
-        if (length(field_parts) == 2) {
-          by_vector[field_parts[1]] <- field_parts[2]
-        } else {
-          warning("Invalid 'by' format: ", part)
-        }
-      } else {
-        # Simple field name, add as unnamed element
-        by_vector <- c(by_vector, part)
-      }
-    }
-
-    # Create a new relation
-    relation <- list(
-      from = rel$from,
-      to = rel$to,
-      type = rel$type,
-      by = by_vector,
-      confidence = rel$confidence
-    )
-
-    # Add description if present
-    if ("description" %in% names(rel) && !is.na(rel$description)) {
-      relation$description <- rel$description
-    }
-
-    # Generate a key for the relation
-    relation_key <- paste(relation$from, "to", relation$to)
-
-    # Add to the list
-    relations[[relation_key]] <- relation
-  }
-
-  return(relations)
-}
 
 #' Join datasets using defined relations
 #'

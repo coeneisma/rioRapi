@@ -3,13 +3,12 @@
 #' Visualize relationships between RIO datasets
 #'
 #' This function creates a visualization of the relationships between RIO datasets
-#' based on the detected structure. It can show connections between specific datasets,
+#' based on the YAML-defined structure. It can show connections between specific datasets,
 #' including indirect connections through intermediary datasets.
 #'
 #' @param datasets Optional character vector of dataset names to visualize.
 #'        If NULL, all datasets in the structure will be visualized.
-#' @param structure Optional RIO structure as returned by rio_load_structure().
-#'        If NULL, the structure will be loaded automatically.
+#' @param relations Optional relation definitions. If NULL, relations are loaded from the YAML file.
 #' @param min_confidence Minimum confidence level for relationships.
 #'        Can be "high" or "medium". Default is "medium".
 #' @param interactive Logical indicating whether to create an interactive visualization
@@ -25,36 +24,15 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Visualize all relationships from the detected structure
+#' # Visualize all relationships from the defined structure
 #' rio_visualize_structure()
 #'
 #' # Visualize only the relationship between two specific datasets
 #' rio_visualize_structure(datasets = c("onderwijslocaties", "vestigingserkenningen"))
-#'
-#' # Find indirect connection paths between datasets that aren't directly connected
-#' rio_visualize_structure(
-#'   datasets = c("onderwijslocaties", "onderwijsinstellingserkenningen"),
-#'   find_paths = TRUE
-#' )
-#'
-#' # Specify additional parameters
-#' rio_visualize_structure(
-#'   datasets = c("onderwijslocaties", "vestigingserkenningen", "onderwijsinstellingserkenningen"),
-#'   highlight_datasets = c("onderwijslocaties"),
-#'   min_confidence = "high"
-#' )
-#'
-#' # Alternative method with loaded datasets
-#' locations <- rio_get_locations(city = "Amsterdam")
-#' institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
-#' rio_visualize_structure(
-#'   locations = locations,
-#'   institutions = institutions
-#' )
 #' }
 #'
 #' @export
-rio_visualize_structure <- function(datasets = NULL, structure = NULL, min_confidence = "medium",
+rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confidence = "medium",
                                     interactive = TRUE, highlight_datasets = NULL,
                                     find_paths = TRUE, max_path_length = 3, ...) {
   # Get the input tibbles if provided via ...
@@ -72,32 +50,25 @@ rio_visualize_structure <- function(datasets = NULL, structure = NULL, min_confi
       interactive = interactive
     ))
   } else {
-    # Load structure if not provided
-    if (is.null(structure)) {
-      structure <- rio_load_structure(auto_detect = TRUE)
+    # Load relations if not provided
+    if (is.null(relations)) {
+      relations_data <- rio_load_relations()
+      relations <- relations_data$relations
+    } else if (!is.null(relations$relations)) {
+      # If complete structure is provided, extract just the relations
+      relations <- relations$relations
     }
 
     # Determine which datasets to visualize
     if (is.null(datasets)) {
-      # If no datasets specified, use all datasets in the structure
-      dataset_names <- names(structure$datasets)
+      # If no datasets specified, use all datasets mentioned in the relations
+      all_datasets <- unique(c(
+        sapply(relations, function(rel) rel$from),
+        sapply(relations, function(rel) rel$to)
+      ))
+      dataset_names <- all_datasets
     } else {
-      # Check if specified datasets exist in the structure
-      all_datasets <- names(structure$datasets)
-      missing_datasets <- datasets[!datasets %in% all_datasets]
-
-      if (length(missing_datasets) > 0) {
-        warning("The following datasets were not found in the RIO structure: ",
-                paste(missing_datasets, collapse = ", "))
-        # Use only the valid datasets
-        dataset_names <- datasets[datasets %in% all_datasets]
-      } else {
-        dataset_names <- datasets
-      }
-
-      if (length(dataset_names) == 0) {
-        stop("No valid datasets specified for visualization")
-      }
+      dataset_names <- datasets
     }
 
     # Create a graph representation of the structure for finding paths

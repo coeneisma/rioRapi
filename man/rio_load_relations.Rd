@@ -2,20 +2,19 @@
 % Please edit documentation in R/relations_utils.R
 \name{rio_load_relations}
 \alias{rio_load_relations}
-\title{Load the RIO relations from a YAML file}
+\title{Load RIO relations from a YAML file}
 \usage{
 rio_load_relations(
   file_path = system.file("extdata", "rio_relations.yaml", package = "rioRapi")
 )
 }
 \arguments{
-\item{file_path}{Path to the YAML file. Default is 'inst/extdata/rio_relations.yaml'.}
+\item{file_path}{Path to the YAML file. Default is the package's built-in relations file.}
 }
 \value{
-A list with the RIO relations.
+A list with the RIO relations structure.
 }
 \description{
 This function loads the RIO relations between tables from a YAML file.
 If the file doesn't exist, an empty relation object is returned.
 }
-\keyword{internal}

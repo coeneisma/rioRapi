@@ -2,7 +2,7 @@
 % Please edit documentation in R/relations_utils.R
 \name{rio_save_relations}
 \alias{rio_save_relations}
-\title{Save the RIO relations as a YAML file}
+\title{Save RIO relations to a YAML file}
 \usage{
 rio_save_relations(
   relations,
@@ -11,10 +11,9 @@ rio_save_relations(
 )
 }
 \arguments{
-\item{relations}{The RIO relations.}
+\item{relations}{The RIO relations structure.}
 
-\item{file_path}{Path to the YAML file where the relations will be saved.
-Default is 'inst/extdata/rio_relations.yaml'.}
+\item{file_path}{Path to the YAML file where the relations will be saved.}
 
 \item{create_dir}{Logical indicating whether to create the directory if it doesn't exist.
 Default is TRUE.}
@@ -23,6 +22,5 @@ Default is TRUE.}
 Invisibly the name of the file where the relations were saved.
 }
 \description{
-This function saves the RIO relations as a YAML file.
+This function saves the RIO relations structure to a YAML file.
 }
-\keyword{internal}

@@ -4,18 +4,28 @@
 \alias{rio_list_relations}
 \title{List all relations in the RIO structure}
 \usage{
-rio_list_relations(relations, as_dataframe = TRUE)
+rio_list_relations(as_dataframe = TRUE, relations = NULL)
 }
 \arguments{
-\item{relations}{The list of RIO relations.}
-
 \item{as_dataframe}{Logical indicating whether the result should be returned as a dataframe.
 Default is TRUE.}
+
+\item{relations}{Optional pre-loaded relations structure. If NULL, relations will be
+automatically loaded from the default or user-specific YAML file.}
 }
 \value{
 A dataframe or list with all relations.
 }
 \description{
-This function provides an overview of all defined relations.
+This function provides an overview of all defined relations in the RIO package.
 }
-\keyword{internal}
+\examples{
+\dontrun{
+# Get all relations as a dataframe
+relations_df <- rio_list_relations()
+
+# Get relations as a list structure
+relations_list <- rio_list_relations(as_dataframe = FALSE)
+}
+
+}
