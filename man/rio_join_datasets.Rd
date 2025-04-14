@@ -67,3 +67,4 @@ viz <- rio_join_datasets("vestigingserkenningen",
 }
 
 }
+\keyword{internal}

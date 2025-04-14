@@ -1,3 +1,43 @@
+#' List available datasets in the RIO package
+#'
+#' This function retrieves a list of all available datasets (resources) in the RIO package.
+#'
+#' @return A tibble with information about each dataset, including ID, name, and description.
+#'
+#' @examples
+#' \dontrun{
+#' datasets <- rio_list_datasets()
+#' }
+#'
+#' @export
+rio_list_datasets <- function() {
+  # Create connection
+  conn <- rio_api_connection()
+
+  # Define package_id
+  package_id <- "rio_nfo_po_vo_vavo_mbo_ho"
+
+  # Get package metadata
+  metadata <- rio_get_metadata()
+
+  # Check if resources exist
+  if (!is.null(metadata$resources) && length(metadata$resources) > 0) {
+    # Resources data frame
+    resources_df <- tibble::as_tibble(metadata$resources)
+
+    # Select relevant columns, if they exist
+    cols_to_select <- intersect(
+      c("id", "name", "description", "format", "last_modified", "url", "created"),
+      names(resources_df)
+    )
+
+    return(resources_df[, cols_to_select, drop = FALSE])
+  } else {
+    warning("No resources found in the package: ", package_id)
+    return(tibble::tibble())
+  }
+}
+
 #' Get metadata for the RIO dataset
 #'
 #' This function retrieves detailed metadata for the Dutch Register of Institutions
@@ -30,43 +70,104 @@ rio_get_metadata <- function() {
   }
 }
 
-#' List available datasets in the RIO package
+
+#' Get information about fields in a dataset
 #'
-#' This function retrieves a list of all available datasets (resources) in the RIO package.
+#' This function retrieves information about the available fields (columns) in a dataset,
+#' which can be used for filtering in the rio_get_data function.
 #'
-#' @return A tibble with information about each dataset, including ID, name, and description.
+#' @param dataset_id The ID of the dataset resource. Default is NULL.
+#' @param dataset_name The name of the dataset resource. Default is NULL.
+#'        Either dataset_id or dataset_name must be provided.
+#'
+#' @return A tibble with information about the fields in the dataset.
 #'
 #' @examples
 #' \dontrun{
-#' datasets <- rio_list_datasets()
+#' # Get fields for the "Onderwijslocaties" dataset
+#' fields <- rio_get_fields(dataset_name = "Onderwijslocaties")
+#'
+#' # Print the field names that can be used for filtering
+#' print(fields$id)
 #' }
 #'
-#' @export
-rio_list_datasets <- function() {
-  # Define package_id
-  package_id <- "rio_nfo_po_vo_vavo_mbo_ho"
+#' @keywords internal
+rio_get_fields <- function(dataset_id = NULL, dataset_name = NULL) {
+  # Check that either dataset_id or dataset_name is provided
+  if (is.null(dataset_id) && is.null(dataset_name)) {
+    stop("Either dataset_id or dataset_name must be provided")
+  }
 
-  # Get package metadata
-  metadata <- rio_get_metadata()
+  # If dataset_name is provided and dataset_id is not, look up the ID
+  if (is.null(dataset_id) && !is.null(dataset_name)) {
+    dataset_id <- get_dataset_id_from_name(dataset_name)
+    if (is.null(dataset_id)) {
+      return(tibble::tibble())
+    }
+  }
 
-  # Check if resources exist
-  if (!is.null(metadata$resources) && length(metadata$resources) > 0) {
-    # Resources data frame
-    resources_df <- tibble::as_tibble(metadata$resources)
+  # Execute API call to get field information
+  response <- rio_api_call(
+    "datastore_search",
+    method = "POST",
+    body = list(dataset_id = dataset_id, limit = 0)
+  )
 
-    # Select relevant columns, if they exist
-    cols_to_select <- intersect(
-      c("id", "name", "description", "format", "last_modified", "url", "created"),
-      names(resources_df)
-    )
-
-    return(resources_df[, cols_to_select, drop = FALSE])
+  if (!is.null(response$result) && !is.null(response$result$fields)) {
+    fields_df <- tibble::as_tibble(response$result$fields)
+    return(fields_df)
   } else {
-    warning("No resources found in the package: ", package_id)
+    warning("Field information not found for the specified dataset")
     return(tibble::tibble())
   }
 }
 
+#' List available tables in the RIO package
+#'
+#' This function retrieves a list of all available tables in the RIO package.
+#'
+#' @param include_description Logical indicating whether to include table descriptions.
+#'        Default is TRUE.
+#' @param pattern Optional pattern to filter table names. Default is NULL (no filtering).
+#'
+#' @return A tibble with information about each table.
+#'
+#' @examples
+#' \dontrun{
+#' # List all available tables
+#' tables <- rio_list_tables()
+#'
+#' # List only tables with "opleiding" in the name
+#' opleiding_tables <- rio_list_tables(pattern = "opleiding")
+#' }
+#'
+#' @export
+rio_list_tables <- function(include_description = TRUE, pattern = NULL) {
+  # Retrieve datasets (tables)
+  tables <- rio_list_datasets()
+
+  # Filter by pattern if provided
+  if (!is.null(pattern)) {
+    tables <- tables[grepl(pattern, tables$name, ignore.case = TRUE), ]
+  }
+
+  # Select relevant columns based on include_description
+  if (include_description) {
+    cols_to_select <- intersect(c("id", "name", "description", "last_modified"), names(tables))
+  } else {
+    cols_to_select <- intersect(c("id", "name", "last_modified"), names(tables))
+  }
+
+  # Prepare return value
+  result <- tables[, cols_to_select, drop = FALSE]
+
+  # Rename columns for more clarity
+  result <- dplyr::rename(result,
+                          table_id = id,
+                          table_name = name)
+
+  return(result)
+}
 #' Get detailed information about a specific dataset
 #'
 #' This function retrieves detailed information about a specific dataset (resource) in the RIO package.
@@ -107,55 +208,58 @@ rio_get_resource_info <- function(dataset_id = NULL, dataset_name = NULL) {
   }
 }
 
-#' Get information about fields in a dataset
+#' List fields in a RIO table
 #'
-#' This function retrieves information about the available fields (columns) in a dataset,
-#' which can be used for filtering in the rio_get_data function.
+#' This function lists all fields (columns) available in a specified RIO table.
 #'
-#' @param dataset_id The ID of the dataset resource. Default is NULL.
-#' @param dataset_name The name of the dataset resource. Default is NULL.
-#'        Either dataset_id or dataset_name must be provided.
+#' @param table_name The name of the table to retrieve fields for.
+#' @param table_id The ID of the table. If NULL, table_name will be used to look up the ID.
+#' @param include_info Logical indicating whether to include field type information.
+#'        Default is TRUE.
+#' @param pattern Optional pattern to filter field names. Default is NULL (no filtering).
 #'
-#' @return A tibble with information about the fields in the dataset.
+#' @return A tibble with information about each field.
 #'
 #' @examples
 #' \dontrun{
-#' # Get fields for the "Onderwijslocaties" dataset
-#' fields <- rio_get_fields(dataset_name = "Onderwijslocaties")
+#' # List all fields in the onderwijslocaties table
+#' fields <- rio_list_fields("onderwijslocaties")
 #'
-#' # Print the field names that can be used for filtering
-#' print(fields$id)
+#' # Filter fields containing "datum"
+#' date_fields <- rio_list_fields("onderwijslocaties", pattern = "datum")
 #' }
 #'
 #' @export
-rio_get_fields <- function(dataset_id = NULL, dataset_name = NULL) {
-  # Check that either dataset_id or dataset_name is provided
-  if (is.null(dataset_id) && is.null(dataset_name)) {
-    stop("Either dataset_id or dataset_name must be provided")
-  }
-
-  # If dataset_name is provided and dataset_id is not, look up the ID
-  if (is.null(dataset_id) && !is.null(dataset_name)) {
-    dataset_id <- get_dataset_id_from_name(dataset_name)
-    if (is.null(dataset_id)) {
-      return(tibble::tibble())
+rio_list_fields <- function(table_name, table_id = NULL, include_info = TRUE, pattern = NULL) {
+  # If table_id is not provided, look it up by name
+  if (is.null(table_id)) {
+    table_id <- get_dataset_id_from_name(table_name)
+    if (is.null(table_id)) {
+      stop("Table not found: ", table_name)
     }
   }
 
-  # Execute API call to get field information
-  response <- rio_api_call(
-    "datastore_search",
-    method = "POST",
-    body = list(dataset_id = dataset_id, limit = 0)
-  )
+  # Get fields information
+  fields <- rio_get_fields(dataset_id = table_id)
 
-  if (!is.null(response$result) && !is.null(response$result$fields)) {
-    fields_df <- tibble::as_tibble(response$result$fields)
-    return(fields_df)
-  } else {
-    warning("Field information not found for the specified dataset")
+  if (nrow(fields) == 0) {
+    message("No fields found for table: ", table_name)
     return(tibble::tibble())
   }
+
+  # Filter by pattern if provided
+  if (!is.null(pattern)) {
+    fields <- fields[grepl(pattern, fields$id, ignore.case = TRUE), ]
+  }
+
+  # Select and rename columns
+  if (include_info) {
+    result <- dplyr::select(fields, field_name = id, field_type = type, .data$info)
+  } else {
+    result <- dplyr::select(fields, field_name = id)
+  }
+
+  return(result)
 }
 
 

@@ -2,30 +2,44 @@
 % Please edit documentation in R/relations_utils.R
 \name{rio_list_relations}
 \alias{rio_list_relations}
-\title{List all relations in the RIO structure}
+\title{List relationships between RIO tables}
 \usage{
-rio_list_relations(as_dataframe = TRUE, relations = NULL)
+rio_list_relations(
+  from = NULL,
+  to = NULL,
+  pattern = NULL,
+  include_metadata = FALSE
+)
 }
 \arguments{
-\item{as_dataframe}{Logical indicating whether the result should be returned as a dataframe.
-Default is TRUE.}
+\item{from}{Optional filter to show only relationships from a specific table.}
 
-\item{relations}{Optional pre-loaded relations structure. If NULL, relations will be
-automatically loaded from the default or user-specific YAML file.}
+\item{to}{Optional filter to show only relationships to a specific table.}
+
+\item{pattern}{Optional pattern to filter relationship descriptions.}
+
+\item{include_metadata}{Logical indicating whether to include relationship metadata.
+Default is FALSE.}
 }
 \value{
-A dataframe or list with all relations.
+A dataframe with relationship information.
 }
 \description{
-This function provides an overview of all defined relations in the RIO package.
+This function provides an overview of all defined relationships between RIO tables.
 }
 \examples{
 \dontrun{
-# Get all relations as a dataframe
-relations_df <- rio_list_relations()
+# List all table relationships
+all_relations <- rio_list_relations()
 
-# Get relations as a list structure
-relations_list <- rio_list_relations(as_dataframe = FALSE)
+# Filter relationships from the "onderwijslocaties" table
+loc_relations <- rio_list_relations(from = "onderwijslocaties")
+
+# Filter relationships between two specific tables
+specific_relations <- rio_list_relations(
+  from = "onderwijslocaties",
+  to = "vestigingserkenningen"
+)
 }
 
 }

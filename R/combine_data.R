@@ -1,5 +1,3 @@
-
-
 #' Visualize relationships between RIO datasets
 #'
 #' This function creates a visualization of the relationships between RIO datasets
@@ -332,6 +330,7 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
     }
   }
 }
+
 
 
 
