@@ -5,8 +5,8 @@
 \title{Visualize RIO table relationships}
 \usage{
 rio_visualize(
-  datasets = NULL,
-  highlight_datasets = NULL,
+  tables = NULL,
+  highlight_tables = NULL,
   min_confidence = "medium",
   interactive = TRUE,
   as_table = FALSE,
@@ -14,10 +14,10 @@ rio_visualize(
 )
 }
 \arguments{
-\item{datasets}{Character vector of table names to visualize.
+\item{tables}{Character vector of table names to visualize.
 If NULL, all tables with relationships will be included.}
 
-\item{highlight_datasets}{Character vector of table names to highlight.}
+\item{highlight_tables}{Character vector of table names to highlight.}
 
 \item{min_confidence}{Minimum confidence level for relationships ("high" or "medium").}
 

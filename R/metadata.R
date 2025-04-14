@@ -1,16 +1,16 @@
-#' List available datasets in the RIO package
+#' List available tables in the RIO package
 #'
-#' This function retrieves a list of all available datasets (resources) in the RIO package.
+#' This function retrieves a list of all available tables (resources) in the RIO package.
 #'
-#' @return A tibble with information about each dataset, including ID, name, and description.
+#' @return A tibble with information about each table, including ID, name, and description.
 #'
 #' @examples
 #' \dontrun{
-#' datasets <- rio_list_datasets()
+#' tables <- rio_list_tables()
 #' }
 #'
 #' @export
-rio_list_datasets <- function() {
+rio_list_tables <- function() {
   # Create connection
   conn <- rio_api_connection()
 
@@ -143,23 +143,23 @@ rio_get_fields <- function(dataset_id = NULL, dataset_name = NULL) {
 #'
 #' @export
 rio_list_tables <- function(include_description = TRUE, pattern = NULL) {
-  # Retrieve datasets (tables)
-  tables <- rio_list_datasets()
+  # Retrieve tables from API
+  tables_df <- rio_list_datasets()  # Internal function still uses 'datasets'
 
   # Filter by pattern if provided
   if (!is.null(pattern)) {
-    tables <- tables[grepl(pattern, tables$name, ignore.case = TRUE), ]
+    tables_df <- tables_df[grepl(pattern, tables_df$name, ignore.case = TRUE), ]
   }
 
   # Select relevant columns based on include_description
   if (include_description) {
-    cols_to_select <- intersect(c("id", "name", "description", "last_modified"), names(tables))
+    cols_to_select <- intersect(c("id", "name", "description", "last_modified"), names(tables_df))
   } else {
-    cols_to_select <- intersect(c("id", "name", "last_modified"), names(tables))
+    cols_to_select <- intersect(c("id", "name", "last_modified"), names(tables_df))
   }
 
   # Prepare return value
-  result <- tables[, cols_to_select, drop = FALSE]
+  result <- tables_df[, cols_to_select, drop = FALSE]
 
   # Rename columns for more clarity
   result <- dplyr::rename(result,
@@ -168,6 +168,7 @@ rio_list_tables <- function(include_description = TRUE, pattern = NULL) {
 
   return(result)
 }
+
 #' Get detailed information about a specific dataset
 #'
 #' This function retrieves detailed information about a specific dataset (resource) in the RIO package.

@@ -1,11 +1,11 @@
-#' Fetch data from a RIO dataset with date filtering
+#' Fetch data from a RIO table with date filtering
 #'
-#' This function retrieves data from a RIO dataset, optionally filtering by a reference date
+#' This function retrieves data from a RIO table, optionally filtering by a reference date
 #' to get only records valid at that date.
 #'
-#' @param dataset_id The ID of the dataset resource to retrieve. Default is NULL.
-#' @param dataset_name The name of the dataset resource to retrieve. Default is NULL.
-#'        Either dataset_id or dataset_name must be provided.
+#' @param table_id The ID of the table resource to retrieve. Default is NULL.
+#' @param table_name The name of the table resource to retrieve. Default is NULL.
+#'        Either table_id or table_name must be provided.
 #' @param reference_date Optional date to filter valid records. If provided, only records
 #'        valid on this date will be returned. Default is NULL (no date filtering).
 #' @param limit Maximum number of records to return. Default is NULL (all records).
@@ -17,27 +17,41 @@
 #'
 #' @return A tibble containing the retrieved data.
 #'
+#' @examples
+#' \dontrun{
+#' # Get data from a table by name
+#' locaties <- rio_get_data(table_name = "onderwijslocaties")
+#'
+#' # Get data from a table by ID with a reference date
+#' vestigingen <- rio_get_data(table_id = "vestigingserkenningen-id",
+#'                            reference_date = as.Date("2023-01-01"))
+#'
+#' # Get data with a filter
+#' rotterdam <- rio_get_data(table_name = "onderwijslocaties",
+#'                          PLAATSNAAM = "Rotterdam")
+#' }
+#'
 #' @export
-rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
+rio_get_data <- function(table_id = NULL, table_name = NULL,
                          reference_date = NULL,
                          limit = NULL, query = NULL,
                          all_records = TRUE, batch_size = 1000,
                          quiet = FALSE,
                          ...) {
-  # Check that either dataset_id or dataset_name is provided
-  if (is.null(dataset_id) && is.null(dataset_name)) {
-    stop("Either dataset_id or dataset_name must be provided")
+  # Check that either table_id or table_name is provided
+  if (is.null(table_id) && is.null(table_name)) {
+    stop("Either table_id or table_name must be provided")
   }
 
-  # If dataset_name is provided and dataset_id is not, look up the ID
-  if (is.null(dataset_id) && !is.null(dataset_name)) {
-    dataset_name_for_messages <- dataset_name  # Store for later use in messages
-    dataset_id <- get_dataset_id_from_name(dataset_name)
-    if (is.null(dataset_id)) {
+  # If table_name is provided and table_id is not, look up the ID
+  if (is.null(table_id) && !is.null(table_name)) {
+    table_name_for_messages <- table_name  # Store for later use in messages
+    table_id <- get_dataset_id_from_name(table_name)
+    if (is.null(table_id)) {
       return(tibble::tibble())
     }
   } else {
-    dataset_name_for_messages <- dataset_id  # Use ID for messages if name isn't provided
+    table_name_for_messages <- table_id  # Use ID for messages if name isn't provided
   }
 
   # Process additional filter parameters
@@ -53,7 +67,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
   # If limit is set or all_records is FALSE, we'll just make a single API call
   if (!is.null(limit) || !all_records) {
     # Build request body
-    body <- list(dataset_id = dataset_id)
+    body <- list(dataset_id = table_id)  # Internally still uses dataset_id
 
     if (!is.null(limit)) {
       body$limit <- limit
@@ -70,7 +84,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     }
 
     if (!quiet) {
-      cli::cli_alert_info("Fetching data from dataset: {.val {dataset_name_for_messages}}")
+      cli::cli_alert_info("Fetching data from table: {.val {table_name_for_messages}}")
     }
 
     # Execute API call
@@ -100,7 +114,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     # We're fetching all records, so we need to make multiple API calls
 
     # First, get the total number of records
-    resource_info <- rio_get_resource_info(dataset_id = dataset_id)
+    resource_info <- rio_get_resource_info(dataset_id = table_id)  # Internal function still uses dataset_id
 
     # Check if we have the preview_rows information
     total_records <- NULL
@@ -111,14 +125,14 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     if (is.null(total_records) || is.na(total_records)) {
       # If we don't have total_records from metadata, make an initial query to get total
       if (!quiet) {
-        cli::cli_alert_info("Determining total number of records in dataset: {.val {dataset_name_for_messages}}")
+        cli::cli_alert_info("Determining total number of records in table: {.val {table_name_for_messages}}")
       }
 
       initial_query <- rio_api_call(
         "datastore_search",
         method = "POST",
         body = list(
-          dataset_id = dataset_id,
+          dataset_id = table_id,  # Internally still uses dataset_id
           limit = 0,
           q = query,
           filters = filters
@@ -136,7 +150,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     }
 
     if (!quiet) {
-      cli::cli_alert_info("Fetching {total_records} records from dataset: {.val {dataset_name_for_messages}}")
+      cli::cli_alert_info("Fetching {total_records} records from table: {.val {table_name_for_messages}}")
 
       # Initialize progress bar with improved format
       cli::cli_progress_bar(
@@ -155,7 +169,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     while (records_fetched < total_records) {
       # Create query for current batch
       body <- list(
-        dataset_id = dataset_id,
+        dataset_id = table_id,  # Internally still uses dataset_id
         limit = batch_size,
         offset = records_fetched
       )

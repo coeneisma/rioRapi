@@ -75,14 +75,18 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
                                                 directed = FALSE)
 
     # Add all datasets as vertices to the full graph
-    all_dataset_names <- names(structure$datasets)
+    all_dataset_names <- unique(c(
+      sapply(relations, function(rel) rel$from),
+      sapply(relations, function(rel) rel$to)
+    ))
+
     for (dataset in all_dataset_names) {
       full_graph <- igraph::add_vertices(full_graph, 1, name = dataset)
     }
 
     # Add all edges to the full graph (we'll use this for path finding)
-    for (rel_name in names(structure$relationships)) {
-      rel <- structure$relationships[[rel_name]]
+    for (rel_name in names(relations)) {
+      rel <- relations[[rel_name]]
 
       # Skip relations with insufficient confidence
       if ((min_confidence == "high" && rel$confidence != "high")) {
@@ -90,7 +94,7 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
       }
 
       # Add the edge
-      full_graph <- igraph::add_edges(full_graph, c(rel$source, rel$target))
+      full_graph <- igraph::add_edges(full_graph, c(rel$from, rel$to))
 
       # Store relationship details
       edge_id <- igraph::ecount(full_graph)
@@ -181,11 +185,11 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
     edge_types <- character(0)  # To track if an edge is part of a path
 
     # Add direct connections
-    for (rel_name in names(structure$relationships)) {
-      rel <- structure$relationships[[rel_name]]
+    for (rel_name in names(relations)) {
+      rel <- relations[[rel_name]]
 
       # Only add edges between datasets we're including
-      if (rel$source %in% datasets_to_include && rel$target %in% datasets_to_include) {
+      if (rel$from %in% datasets_to_include && rel$to %in% datasets_to_include) {
 
         # Skip relations with insufficient confidence
         if ((min_confidence == "high" && rel$confidence != "high")) {
@@ -193,21 +197,31 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
         }
 
         # Add an edge
-        g <- igraph::add_edges(g, c(rel$source, rel$target))
+        g <- igraph::add_edges(g, c(rel$from, rel$to))
 
         # Get the joining field(s) for the edge label
-        if (length(rel$exact_matches) > 0) {
-          join_fields <- rel$exact_matches
-        } else if (length(rel$relation_matches) > 0) {
-          join_fields <- sapply(rel$relation_matches, function(x) x$rel_field)
-        } else if (length(rel$similar_matches) > 0) {
-          join_fields <- sapply(rel$similar_matches, function(x) paste(x$source_field, "=", x$target_field))
+        if (!is.null(rel$by)) {
+          if (is.character(rel$by) && !is.null(names(rel$by)) && any(names(rel$by) != "")) {
+            # Named fields (different names in source and target)
+            label_parts <- character(0)
+            for (i in seq_along(rel$by)) {
+              if (names(rel$by)[i] == "") {
+                label_parts <- c(label_parts, rel$by[i])
+              } else {
+                label_parts <- c(label_parts, paste(names(rel$by)[i], "=", rel$by[i]))
+              }
+            }
+            join_fields <- paste(label_parts, collapse = "\n")
+          } else {
+            # Unnamed fields (same name in both datasets)
+            join_fields <- paste(rel$by, collapse = "\n")
+          }
         } else {
           join_fields <- "Unknown connection"
         }
 
         edge_id <- igraph::ecount(g)
-        edge_labels[edge_id] <- paste(join_fields, collapse = "\n")
+        edge_labels[edge_id] <- join_fields
 
         # Assign color and width based on confidence
         edge_colors[edge_id] <- ifelse(rel$confidence == "high", "green", "orange")
@@ -280,11 +294,11 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
         }
 
         # Create the network with better layout
-        net <- visNetwork::visNetwork(nodes, edges) %>%
-          visNetwork::visOptions(highlightNearest = TRUE, selectedBy = "label") %>%
-          visNetwork::visEdges(font = list(color = "red", size = 12)) %>%
-          visNetwork::visNodes(font = list(size = 14)) %>%
-          visNetwork::visLayout(randomSeed = 123) %>%  # For consistency
+        net <- visNetwork::visNetwork(nodes, edges) |>
+          visNetwork::visOptions(highlightNearest = TRUE, selectedBy = "label") |>
+          visNetwork::visEdges(font = list(color = "red", size = 12)) |>
+          visNetwork::visNodes(font = list(size = 14)) |>
+          visNetwork::visLayout(randomSeed = 123) |>  # For consistency
           visNetwork::visPhysics(solver = "forceAtlas2Based",
                                  forceAtlas2Based = list(gravitationalConstant = -100,
                                                          springLength = 200,  # More space between nodes

@@ -309,9 +309,9 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
 #' It can show connections between specific tables, including indirect connections
 #' through intermediary tables.
 #'
-#' @param datasets Character vector of table names to visualize.
+#' @param tables Character vector of table names to visualize.
 #'        If NULL, all tables with relationships will be included.
-#' @param highlight_datasets Character vector of table names to highlight.
+#' @param highlight_tables Character vector of table names to highlight.
 #' @param min_confidence Minimum confidence level for relationships ("high" or "medium").
 #' @param interactive Logical indicating whether to create an interactive visualization.
 #'        Default is TRUE.
@@ -334,7 +334,7 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
 #' }
 #'
 #' @export
-rio_visualize <- function(datasets = NULL, highlight_datasets = NULL,
+rio_visualize <- function(tables = NULL, highlight_tables = NULL,
                           min_confidence = "medium", interactive = TRUE,
                           as_table = FALSE, quiet = FALSE) {
   # Load relations
@@ -347,11 +347,11 @@ rio_visualize <- function(datasets = NULL, highlight_datasets = NULL,
 
   # Create visualization
   result <- rio_visualize_structure(
-    datasets = datasets,
+    tables = tables,
     relations = relations$relations,
     min_confidence = min_confidence,
     interactive = interactive,
-    highlight_datasets = highlight_datasets,
+    highlight_tables = highlight_tables,
     find_paths = TRUE
   )
 
@@ -621,7 +621,7 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
       if (!quiet) {
         cli::cli_alert_info("Loading table: {name}")
       }
-      tibbles[[name]] <- rio_get_data(dataset_name = name)
+      tibbles[[name]] <- rio_get_data(table_name = name)
     }
   } else {
     # Input is already loaded tibbles
@@ -640,7 +640,7 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
 
   # If visualization is requested, return visualization
   if (visualize) {
-    return(rio_visualize(datasets = table_names, interactive = TRUE))
+    return(rio_visualize(tables = table_names, interactive = TRUE))
   }
 
   # Find the optimal path to connect the tables
@@ -663,15 +663,15 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
 }
 
 
-#' Join datasets using predefined relations from YAML configuration
+#' Join tables using predefined relations from YAML configuration
 #'
-#' This function joins multiple datasets based on predefined relations stored in the
-#' RIO relations YAML file. It finds the optimal path between datasets and performs
+#' This function joins multiple tables based on predefined relations stored in the
+#' RIO relations YAML file. It finds the optimal path between tables and performs
 #' the joins accordingly.
 #'
-#' @param ... Named tibbles to join or character vector of dataset names to load.
-#' @param by_names Logical indicating whether the arguments are dataset names
-#'        rather than actual datasets. Default is FALSE.
+#' @param ... Named tibbles to join or character vector of table names to load.
+#' @param by_names Logical indicating whether the arguments are table names
+#'        rather than actual table. Default is FALSE.
 #' @param relations Optional list of relations. If NULL, relations are loaded from the default file.
 #' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
 #' @param nested Logical indicating whether to return the result as a nested tibble.
@@ -688,28 +688,28 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
 #' # Provide actual tibbles
 #' vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
 #' locaties <- rio_get_data(dataset_name = "onderwijslocaties")
-#' joined_data <- rio_join_datasets(vestigingen = vestigingen, locaties = locaties)
+#' joined_data <- rio_join_tables(vestigingen = vestigingen, locaties = locaties)
 #'
 #' # Or provide dataset names (will load data automatically)
-#' joined_data <- rio_join_datasets("vestigingserkenningen",
+#' joined_data <- rio_join_tables("vestigingserkenningen",
 #'                                  "onderwijslocaties",
 #'                                  by_names = TRUE)
 #'
 #' # Create a nested result
-#' nested_data <- rio_join_datasets("vestigingserkenningen",
+#' nested_data <- rio_join_tables("vestigingserkenningen",
 #'                                  "onderwijslocaties",
 #'                                  by_names = TRUE,
 #'                                  nested = TRUE)
 #'
 #' # Visualize the connection path
-#' viz <- rio_join_datasets("vestigingserkenningen",
+#' viz <- rio_join_tables("vestigingserkenningen",
 #'                          "onderwijslocaties",
 #'                          by_names = TRUE,
 #'                          visualize = TRUE)
 #' }
 #'
 #' @keywords internal
-rio_join_datasets <- function(..., by_names = FALSE, relations = NULL,
+rio_join_tables <- function(..., by_names = FALSE, relations = NULL,
                               reference_date = NULL, nested = FALSE,
                               visualize = FALSE, verbose = TRUE) {
   # Process inputs
@@ -921,10 +921,85 @@ rio_list_relations <- function(from = NULL, to = NULL, pattern = NULL, include_m
 
 # The internal function (renamed from the current rio_list_relations)
 rio_list_relations_internal <- function(relations, as_dataframe = TRUE) {
-  # Implementation of current rio_list_relations function
-  # (keep the current code but rename the function)
-}
+  # Check if relations structure exists and contains relations
+  if (is.null(relations$relations) || length(relations$relations) == 0) {
+    if (as_dataframe) {
+      return(data.frame(
+        relation_key = character(0),
+        from = character(0),
+        to = character(0),
+        type = character(0),
+        by = character(0),
+        confidence = character(0),
+        description = character(0),
+        stringsAsFactors = FALSE
+      ))
+    } else {
+      return(list())
+    }
+  }
 
+  if (as_dataframe) {
+    # Convert to dataframe
+    relations_list <- list()
+
+    for (rel_name in names(relations$relations)) {
+      rel <- relations$relations[[rel_name]]
+
+      # Convert 'by' to a string representation
+      if (is.character(rel$by) && !is.null(names(rel$by)) && any(names(rel$by) != "")) {
+        # Named vector, fields have different names
+        by_parts <- character(length(rel$by))
+        for (i in seq_along(rel$by)) {
+          if (names(rel$by)[i] == "") {
+            # Unnamed element
+            by_parts[i] <- rel$by[i]
+          } else {
+            # Named element, format as "from_field = to_field"
+            by_parts[i] <- paste0(names(rel$by)[i], " = ", rel$by[i])
+          }
+        }
+        by_str <- paste(by_parts, collapse = ", ")
+      } else {
+        # Unnamed vector or list
+        by_str <- paste(rel$by, collapse = ", ")
+      }
+
+      # Extract metadata if any
+      metadata_str <- NA
+      if (!is.null(rel$metadata)) {
+        if (requireNamespace("jsonlite", quietly = TRUE)) {
+          metadata_str <- jsonlite::toJSON(rel$metadata, auto_unbox = TRUE)
+        } else {
+          metadata_str <- "Metadata present (install jsonlite package to view)"
+        }
+      }
+
+      relations_list[[length(relations_list) + 1]] <- data.frame(
+        relation_key = rel_name,
+        from = rel$from,
+        to = rel$to,
+        type = ifelse(is.null(rel$type), "one-to-many", rel$type),
+        by = by_str,
+        confidence = ifelse(is.null(rel$confidence), "medium", rel$confidence),
+        description = ifelse(is.null(rel$description), NA, rel$description),
+        has_metadata = !is.null(rel$metadata),
+        metadata = metadata_str,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    if (length(relations_list) > 0) {
+      relations_df <- do.call(rbind, relations_list)
+      return(relations_df)
+    } else {
+      return(data.frame())
+    }
+  } else {
+    # Return just the relations part of the structure
+    return(relations$relations)
+  }
+}
 #' Export default relation definitions to a user-specific version
 #'
 #' This function exports the default relation definitions from the package to

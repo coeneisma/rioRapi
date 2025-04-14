@@ -2,11 +2,11 @@
 % Please edit documentation in R/fetch_data.R
 \name{rio_get_data}
 \alias{rio_get_data}
-\title{Fetch data from a RIO dataset with date filtering}
+\title{Fetch data from a RIO table with date filtering}
 \usage{
 rio_get_data(
-  dataset_id = NULL,
-  dataset_name = NULL,
+  table_id = NULL,
+  table_name = NULL,
   reference_date = NULL,
   limit = NULL,
   query = NULL,
@@ -17,10 +17,10 @@ rio_get_data(
 )
 }
 \arguments{
-\item{dataset_id}{The ID of the dataset resource to retrieve. Default is NULL.}
+\item{table_id}{The ID of the table resource to retrieve. Default is NULL.}
 
-\item{dataset_name}{The name of the dataset resource to retrieve. Default is NULL.
-Either dataset_id or dataset_name must be provided.}
+\item{table_name}{The name of the table resource to retrieve. Default is NULL.
+Either table_id or table_name must be provided.}
 
 \item{reference_date}{Optional date to filter valid records. If provided, only records
 valid on this date will be returned. Default is NULL (no date filtering).}
@@ -41,6 +41,21 @@ valid on this date will be returned. Default is NULL (no date filtering).}
 A tibble containing the retrieved data.
 }
 \description{
-This function retrieves data from a RIO dataset, optionally filtering by a reference date
+This function retrieves data from a RIO table, optionally filtering by a reference date
 to get only records valid at that date.
+}
+\examples{
+\dontrun{
+# Get data from a table by name
+locaties <- rio_get_data(table_name = "onderwijslocaties")
+
+# Get data from a table by ID with a reference date
+vestigingen <- rio_get_data(table_id = "vestigingserkenningen-id",
+                           reference_date = as.Date("2023-01-01"))
+
+# Get data with a filter
+rotterdam <- rio_get_data(table_name = "onderwijslocaties",
+                         PLAATSNAAM = "Rotterdam")
+}
+
 }
