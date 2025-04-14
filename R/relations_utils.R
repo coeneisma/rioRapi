@@ -187,6 +187,9 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
 
   result <- tibbles[[current_dataset]]
 
+  # Check if ID column exists in the first dataset
+  has_id_column <- "id" %in% names(result)
+
   # Keep track of datasets we've already included
   visited <- c(current_dataset)
 
@@ -214,7 +217,7 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
       next
     }
 
-    # Get the relationship information - this needs to be adapted for the YAML structure
+    # Get the relationship information
     rel_key <- NULL
 
     # Find the relation in the relations list that matches these datasets
@@ -280,8 +283,33 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
       }
     }
 
+    # Prepare the next tibble to join (handle duplicate column names)
+    next_tibble <- tibbles[[next_dataset]]
+
+    # Handle the 'id' column - remove it from secondary tables
+    if (has_id_column && "id" %in% names(next_tibble) && current_dataset != next_dataset) {
+      next_tibble <- next_tibble[, !names(next_tibble) %in% "id"]
+    }
+
+    # Find overlapping column names (except join keys)
+    join_keys <- if (is.character(by_fields) && !is.null(names(by_fields))) {
+      unique(c(names(by_fields), unname(by_fields)))
+    } else {
+      by_fields
+    }
+
+    # Find columns with the same names in both datasets, excluding join keys
+    overlap_cols <- setdiff(intersect(names(result), names(next_tibble)), join_keys)
+
+    # Rename overlapping columns in the dataset to be joined
+    if (length(overlap_cols) > 0) {
+      for (col in overlap_cols) {
+        names(next_tibble)[names(next_tibble) == col] <- paste0(next_dataset, "_", col)
+      }
+    }
+
     # Perform the join
-    result <- dplyr::left_join(result, tibbles[[next_dataset]], by = by_fields)
+    result <- dplyr::left_join(result, next_tibble, by = by_fields)
 
     if (verbose) {
       cli::cli_alert_success("Successfully joined '{next_dataset}', now at {nrow(result)} rows and {ncol(result)} columns")
@@ -303,10 +331,42 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
   return(result)
 }
 
+#' Visualize relationships between RIO datasets
+#'
+#' This function creates a visualization of the relationships between RIO datasets
+#' based on the YAML-defined structure. It can show connections between specific datasets,
+#' including indirect connections through intermediary datasets.
+#'
+#' @param tables Optional character vector of dataset names to visualize.
+#'        If NULL, all datasets in the structure will be visualized.
+#' @param highlight_tables Character vector of dataset names to highlight in the visualization.
+#' @param min_confidence Minimum confidence level for relationships.
+#'        Can be "high" or "medium". Default is "medium".
+#' @param interactive Logical indicating whether to create an interactive visualization
+#'        (requires visNetwork package). Default is TRUE.
+#' @param as_table Logical indicating whether to return relations as a table.
+#'        Default is FALSE.
+#' @param quiet Logical indicating whether to suppress progress messages.
+#'        Default is FALSE.
+#' @param max_path_length Maximum length of connection paths to consider.
+#'        Default is 3.
+#'
+#' @return A visualization object showing the relationships between datasets.
+#'
+#' @examples
+#' \dontrun{
+#' # Visualize all relationships from the defined structure
+#' rio_visualize()
+#'
+#' # Visualize only the relationship between two specific datasets
+#' rio_visualize(tables = c("onderwijslocaties", "vestigingserkenningen"))
+#' }
+#'
+#' @export
 rio_visualize <- function(tables = NULL, highlight_tables = NULL,
                           min_confidence = "medium", interactive = TRUE,
                           as_table = FALSE, quiet = FALSE,
-                          max_path_length = 3) {  # Toegevoegde parameter
+                          max_path_length = 3) {
   # Load relations
   relations <- rio_load_relations()
 
@@ -315,18 +375,44 @@ rio_visualize <- function(tables = NULL, highlight_tables = NULL,
     return(rio_list_relations(as_dataframe = TRUE, relations = relations))
   }
 
-  # Create visualization
-  result <- rio_visualize_structure(
-    datasets = tables,
-    relations = relations$relations,
-    min_confidence = min_confidence,
-    interactive = interactive,
-    highlight_datasets = highlight_tables,
-    find_paths = TRUE,
-    max_path_length = max_path_length  # Doorgeven van de parameter
-  )
+  # If tables is NULL, visualize all relations
+  if (is.null(tables)) {
+    # Use the rio_visualize_structure function directly
+    result <- rio_visualize_structure(
+      datasets = tables,
+      relations = relations$relations,
+      min_confidence = min_confidence,
+      interactive = interactive,
+      highlight_datasets = highlight_tables,
+      find_paths = TRUE,
+      max_path_length = max_path_length
+    )
 
-  return(result)
+    return(result)
+  } else {
+    # For specific tables, use the common helper function
+    path_result <- rio_find_table_paths(
+      tables = tables,
+      relations = relations$relations,
+      min_confidence = min_confidence,
+      find_paths = TRUE,
+      max_path_length = max_path_length,
+      quiet = quiet
+    )
+
+    # Use the rio_visualize_structure function with the found tables
+    result <- rio_visualize_structure(
+      datasets = path_result$tables,
+      relations = relations$relations,
+      min_confidence = min_confidence,
+      interactive = interactive,
+      highlight_datasets = highlight_tables,
+      find_paths = TRUE,
+      max_path_length = max_path_length
+    )
+
+    return(result)
+  }
 }
 
 #' Visualize the connection path between datasets
@@ -641,48 +727,91 @@ rio_visualize_connections <- function(connections, min_confidence = "medium", in
 #'
 #' @keywords internal
 nest_result <- function(joined_data, dataset_names, path_info) {
-  # This is a simplified implementation
-  # A more comprehensive version would need to analyze column prefixes
-  # and properly organize the nesting structure
+  # Check for required packages
+  if (!requireNamespace("tidyr", quietly = TRUE)) {
+    stop("Package 'tidyr' is required for nested results")
+  }
 
-  # First, identify columns from each dataset
-  # This is a simplification; in reality you'd need a more robust way to
-  # determine which columns came from which dataset
-
-  # For now, we'll just create a single level of nesting based on common prefixes
-  # or using the dataset names to guide the nesting
-
-  # Find all column names
-  all_cols <- colnames(joined_data)
-
-  # Try to determine columns from each dataset
-  # This is a very simple approach and might need refinement
+  # Copy the joined data to avoid modifying the original
   nested_data <- joined_data
 
-  # Attempt to nest columns with common prefixes
+  # First identify columns that likely belong to each dataset
+  # We'll use column prefixes to identify the source dataset
+  datasets_columns <- list()
+
+  # Define some common key columns that should not be nested
+  common_keys <- c("id", grep("CODE$|ID$|NUMBER$", names(nested_data), value = TRUE))
+
+  # For datasets without assigned columns, try to extract them from the remaining columns
+  remaining_cols <- setdiff(names(nested_data), common_keys)
+
+  # Loop through each dataset and find corresponding columns
   for (dataset in dataset_names) {
-    # Look for columns that might belong to this dataset
-    # We'll look for columns with the dataset name as a prefix
-    dataset_cols <- grep(paste0("^", dataset, "_"), all_cols, value = TRUE)
+    # Look for columns with the dataset name as a prefix
+    prefix_pattern <- paste0("^", dataset, "_")
+    dataset_cols <- grep(prefix_pattern, remaining_cols, value = TRUE)
 
     if (length(dataset_cols) > 0) {
-      # Nest these columns
-      nested_data <- nested_data |>
-        dplyr::nest(!!dataset := dataset_cols)
-    } else {
-      # Simple fallback - look for common prefixes in general
-      # This is very simplistic and would need refinement
-      col_prefixes <- unique(sub("_.*$", "", all_cols))
+      datasets_columns[[dataset]] <- dataset_cols
+      remaining_cols <- setdiff(remaining_cols, dataset_cols)
+    }
+  }
 
-      for (prefix in col_prefixes) {
-        prefix_cols <- grep(paste0("^", prefix, "_"), all_cols, value = TRUE)
-
-        if (length(prefix_cols) > 3) {  # Arbitrary threshold
-          nested_data <- nested_data |>
-            dplyr::nest(!!prefix := prefix_cols)
-        }
+  # Assign remaining columns to datasets based on connections in path_info
+  if (length(remaining_cols) > 0 && !is.null(path_info$connections)) {
+    # First, determine the order of datasets from connections
+    dataset_order <- character(0)
+    for (conn in path_info$connections) {
+      if (!is.null(conn$from) && !is.null(conn$to)) {
+        dataset_order <- c(dataset_order, conn$from, conn$to)
       }
     }
+    dataset_order <- unique(dataset_order)
+
+    # Then, distribute remaining columns based on this order
+    for (dataset in dataset_order) {
+      if (!(dataset %in% names(datasets_columns))) {
+        datasets_columns[[dataset]] <- character(0)
+      }
+    }
+
+    # Distribute remaining columns to datasets based on best guess
+    # For simplicity, we'll assign each column to the first dataset that doesn't have any columns yet
+    for (col in remaining_cols) {
+      assigned <- FALSE
+      for (dataset in names(datasets_columns)) {
+        if (length(datasets_columns[[dataset]]) == 0) {
+          datasets_columns[[dataset]] <- c(datasets_columns[[dataset]], col)
+          assigned <- TRUE
+          break
+        }
+      }
+
+      # If not assigned to any dataset yet, add to the first dataset
+      if (!assigned && length(datasets_columns) > 0) {
+        first_dataset <- names(datasets_columns)[1]
+        datasets_columns[[first_dataset]] <- c(datasets_columns[[first_dataset]], col)
+      }
+    }
+  }
+
+  # Create a nested tibble using tidyr
+  for (dataset in names(datasets_columns)) {
+    cols <- datasets_columns[[dataset]]
+
+    if (length(cols) > 0) {
+      # Nest these columns
+      tryCatch({
+        nested_data <- tidyr::nest(nested_data, !!dataset := cols)
+      }, error = function(e) {
+        warning("Failed to nest columns for dataset '", dataset, "': ", e$message)
+      })
+    }
+  }
+
+  # If no nesting happened, warn the user
+  if (ncol(nested_data) == ncol(joined_data)) {
+    warning("Could not create nested structure. No columns identified for nesting.")
   }
 
   return(nested_data)
@@ -745,112 +874,46 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
     # Input is table names, load the data
     table_names <- unlist(input_args)
 
-    # If we want to find indirect paths between tables
-    if (find_paths && length(table_names) > 1) {
-      if (!quiet) {
-        cli::cli_alert_info("Zoeken naar indirecte paden tussen tabellen")
-      }
+    # Use the common helper function to find paths between tables
+    path_result <- rio_find_table_paths(
+      tables = table_names,
+      relations = relations$relations,
+      min_confidence = "medium",
+      find_paths = find_paths,
+      max_path_length = max_path_length,
+      quiet = quiet
+    )
 
-      # Create a graph with all defined relations
-      g <- igraph::make_empty_graph(directed = FALSE)
+    # Update with all tables that need to be included
+    table_names <- path_result$tables
 
-      # Get all datasets
-      datasets <- rio_list_datasets()
-      all_tables <- datasets$table_name
-
-      # Add all tables as vertices
-      for (table in all_tables) {
-        g <- igraph::add_vertices(g, 1, name = table)
-      }
-
-      # Add all relations as edges
-      for (rel_name in names(relations$relations)) {
-        rel <- relations$relations[[rel_name]]
-        from_idx <- which(igraph::V(g)$name == rel$from)
-        to_idx <- which(igraph::V(g)$name == rel$to)
-
-        if (length(from_idx) > 0 && length(to_idx) > 0) {
-          g <- igraph::add_edges(g, c(from_idx, to_idx))
-        }
-      }
-
-      # Find the intermediate tables needed to connect all specified tables
-      all_tables_to_join <- table_names
-
-      # Check all pairs of specified tables
-      for (i in 1:(length(table_names)-1)) {
-        for (j in (i+1):length(table_names)) {
-          from_table <- table_names[i]
-          to_table <- table_names[j]
-
-          # Check if there's a direct relation between these tables
-          direct_relation_exists <- FALSE
-          for (rel_name in names(relations$relations)) {
-            rel <- relations$relations[[rel_name]]
-            if ((rel$from == from_table && rel$to == to_table) ||
-                (rel$from == to_table && rel$to == from_table)) {
-              direct_relation_exists <- TRUE
-              break
-            }
-          }
-
-          # If there's no direct relation, look for a path
-          if (!direct_relation_exists) {
-            from_idx <- which(igraph::V(g)$name == from_table)
-            to_idx <- which(igraph::V(g)$name == to_table)
-
-            if (length(from_idx) > 0 && length(to_idx) > 0) {
-              # Find the shortest path between these tables
-              all_paths <- igraph::all_simple_paths(g,
-                                                    from = from_idx,
-                                                    to = to_idx,
-                                                    mode = "all",
-                                                    cutoff = max_path_length)
-
-              if (length(all_paths) > 0) {
-                # Find the shortest path
-                shortest_path <- all_paths[[1]]
-                shortest_length <- length(shortest_path)
-
-                for (p in 2:length(all_paths)) {
-                  if (length(all_paths[[p]]) < shortest_length) {
-                    shortest_path <- all_paths[[p]]
-                    shortest_length <- length(all_paths[[p]])
-                  }
-                }
-
-                # Get the names of the tables in the path
-                path_tables <- igraph::V(g)$name[shortest_path]
-                all_tables_to_join <- unique(c(all_tables_to_join, path_tables))
-
-                if (!quiet) {
-                  cli::cli_alert_info("Pad gevonden tussen '{from_table}' en '{to_table}': {paste(path_tables, collapse = ' -> ')}")
-                }
-              } else if (!quiet) {
-                cli::cli_alert_warning("Geen pad gevonden tussen '{from_table}' en '{to_table}' binnen max_path_length {max_path_length}")
-              }
-            }
-          }
-        }
-      }
-
-      # Update the table_names with the additional intermediate tables
-      table_names <- all_tables_to_join
-
-      if (!quiet) {
-        cli::cli_alert_info("Laden van {length(table_names)} tabellen (inclusief tussenliggende tabellen)")
-      }
-    } else if (!quiet) {
-      cli::cli_alert_info("Laden van {length(table_names)} tabellen")
+    if (!quiet) {
+      cli::cli_alert_info("Loading {length(table_names)} tables")
     }
 
     # Load each table
     tibbles <- list()
     for (name in table_names) {
       if (!quiet) {
-        cli::cli_alert_info("Laden van tabel: {name}")
+        cli::cli_alert_info("Loading table: {name}")
       }
-      tibbles[[name]] <- rio_get_data(table_name = name)
+      tibble_result <- tryCatch({
+        rio_get_data(table_name = name, quiet = quiet)
+      }, error = function(e) {
+        if (!quiet) {
+          cli::cli_alert_danger("Error loading table '{name}': {e$message}")
+        }
+        # Return empty tibble
+        tibble::tibble()
+      })
+
+      if (nrow(tibble_result) == 0) {
+        if (!quiet) {
+          cli::cli_alert_warning("No data found for table '{name}'")
+        }
+      }
+
+      tibbles[[name]] <- tibble_result
     }
   } else {
     # Input is already loaded tibbles
@@ -881,7 +944,12 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
 
   # Format as nested tibble if requested
   if (nested) {
-    result <- nest_result(result, table_names, path_info)
+    tryCatch({
+      result <- nest_result(result, table_names, path_info)
+    }, error = function(e) {
+      warning("Failed to create nested result: ", e$message,
+              "\nReturning flat joined table instead.")
+    })
   }
 
   if (!quiet) {
@@ -890,6 +958,7 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
 
   return(result)
 }
+
 
 
 #' Join tables using predefined relations from YAML configuration
@@ -1632,4 +1701,198 @@ rio_find_connections <- function(dataset_names, relations, min_confidence = "med
   }
 
   return(connections)
+}
+
+#' Find paths between tables based on predefined relations
+#'
+#' This helper function identifies paths between tables using the relations
+#' defined in the YAML configuration. It is used by both rio_visualize() and rio_join()
+#' to ensure consistent behavior.
+#'
+#' @param tables Character vector of table names to find paths between
+#' @param relations List of relation definitions
+#' @param min_confidence Minimum confidence level for relationships ("high" or "medium")
+#' @param find_paths Logical indicating whether to look for indirect paths between tables
+#' @param max_path_length Maximum path length to consider when find_paths is TRUE
+#' @param quiet Logical indicating whether to suppress progress messages
+#'
+#' @return A list containing:
+#'  - tables: Character vector of all tables to include (original + intermediate)
+#'  - paths: List of connection paths between tables
+#'
+#' @keywords internal
+rio_find_table_paths <- function(tables, relations, min_confidence = "medium",
+                                 find_paths = TRUE, max_path_length = 3, quiet = FALSE) {
+  # Make sure we have a valid list of relations
+  if (is.list(relations) && !is.null(relations$relations)) {
+    # If complete structure is provided, extract just the relations
+    relations <- relations$relations
+  }
+
+  # Ensure tables is a character vector
+  tables <- as.character(tables)
+
+  # Get all unique tables mentioned in relations
+  all_relation_tables <- unique(c(
+    sapply(relations, function(rel) rel$from),
+    sapply(relations, function(rel) rel$to)
+  ))
+
+  # Check if specified tables exist in relations, attempt to correct names if needed
+  corrected_tables <- character(length(tables))
+  for (i in seq_along(tables)) {
+    if (tables[i] %in% all_relation_tables) {
+      # Exact match
+      corrected_tables[i] <- tables[i]
+    } else {
+      # Try case-insensitive match
+      lower_input <- tolower(tables[i])
+      lower_relation_tables <- tolower(all_relation_tables)
+      match_idx <- which(lower_relation_tables == lower_input)
+
+      if (length(match_idx) > 0) {
+        corrected_tables[i] <- all_relation_tables[match_idx[1]]
+        if (!quiet) {
+          message("Table name '", tables[i], "' corrected to '", corrected_tables[i], "'")
+        }
+      } else {
+        # No match found, keep original
+        corrected_tables[i] <- tables[i]
+        if (!quiet) {
+          message("Warning: Table '", tables[i], "' not found in relations")
+        }
+      }
+    }
+  }
+  tables <- corrected_tables
+
+  # Start with the original tables
+  result_tables <- tables
+
+  # If we need to find paths between tables
+  if (find_paths && length(tables) > 1) {
+    if (!quiet) {
+      message("Looking for paths between tables...")
+    }
+
+    # Create a graph representation for finding paths
+    g <- igraph::graph_from_data_frame(d = data.frame(source = character(0),
+                                                      target = character(0)),
+                                       directed = FALSE)
+
+    # Add all tables from relations as vertices
+    for (table in all_relation_tables) {
+      g <- igraph::add_vertices(g, 1, name = table)
+    }
+
+    # Add all edges based on relations
+    for (rel_name in names(relations)) {
+      rel <- relations[[rel_name]]
+
+      # Skip relations with insufficient confidence
+      if ((min_confidence == "high" && rel$confidence != "high")) {
+        next
+      }
+
+      # Skip invalid relations
+      if (is.null(rel$from) || is.null(rel$to) ||
+          !(rel$from %in% all_relation_tables) || !(rel$to %in% all_relation_tables)) {
+        next
+      }
+
+      # Add the edge
+      from_idx <- which(igraph::V(g)$name == rel$from)
+      to_idx <- which(igraph::V(g)$name == rel$to)
+
+      if (length(from_idx) > 0 && length(to_idx) > 0) {
+        g <- igraph::add_edges(g, c(from_idx, to_idx))
+
+        # Store relationship details
+        edge_id <- igraph::ecount(g)
+        igraph::E(g)$relationship_name[edge_id] <- rel_name
+        igraph::E(g)$weight[edge_id] <- ifelse(rel$confidence == "high", 1, 2)
+      }
+    }
+
+    # Find paths between each pair of input tables
+    connection_paths <- list()
+
+    for (i in 1:(length(tables) - 1)) {
+      for (j in (i + 1):length(tables)) {
+        from_table <- tables[i]
+        to_table <- tables[j]
+
+        # Check if there's a direct connection
+        direct_connection <- FALSE
+        for (rel_name in names(relations)) {
+          rel <- relations[[rel_name]]
+          if ((rel$from == from_table && rel$to == to_table) ||
+              (rel$from == to_table && rel$to == from_table)) {
+            direct_connection <- TRUE
+            break
+          }
+        }
+
+        # If no direct connection, find a path
+        if (!direct_connection) {
+          # First check if both tables exist in the graph
+          from_idx <- which(igraph::V(g)$name == from_table)
+          to_idx <- which(igraph::V(g)$name == to_table)
+
+          if (length(from_idx) > 0 && length(to_idx) > 0) {
+            # Find all simple paths between these tables
+            try({
+              paths <- igraph::all_simple_paths(
+                g,
+                from = from_idx,
+                to = to_idx,
+                mode = "all",
+                cutoff = max_path_length
+              )
+
+              if (length(paths) > 0) {
+                # Get the shortest path
+                shortest_path <- paths[[1]]
+                for (p in paths) {
+                  if (length(p) < length(shortest_path)) {
+                    shortest_path <- p
+                  }
+                }
+
+                # Add all tables in the path to the result
+                path_tables <- igraph::V(g)$name[shortest_path]
+                result_tables <- unique(c(result_tables, path_tables))
+
+                # Store path information
+                connection_paths[[length(connection_paths) + 1]] <- list(
+                  from = from_table,
+                  to = to_table,
+                  path = path_tables
+                )
+
+                if (!quiet) {
+                  message("Found path between '", from_table, "' and '", to_table,
+                          "': ", paste(path_tables, collapse = " -> "))
+                }
+              } else if (!quiet) {
+                message("No path found between '", from_table, "' and '", to_table,
+                        "' within maximum path length of ", max_path_length)
+              }
+            }, silent = TRUE)
+          } else if (!quiet) {
+            missing_tables <- c()
+            if (length(from_idx) == 0) missing_tables <- c(missing_tables, from_table)
+            if (length(to_idx) == 0) missing_tables <- c(missing_tables, to_table)
+
+            message("Table(s) not found in relations: ", paste(missing_tables, collapse = ", "))
+          }
+        }
+      }
+    }
+  }
+
+  return(list(
+    tables = result_tables,
+    paths = connection_paths
+  ))
 }
