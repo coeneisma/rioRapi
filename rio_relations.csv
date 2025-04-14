@@ -1,0 +1,6 @@
+"from","to","type","by","confidence","description"
+"vestigingserkenningen","relaties_onderwijslocatiegebruiken_vestigingserkenningen","one-to-many","VESTIGINGSCODE","high",NA
+"vestigingserkenningen","relaties_onderwijsinstellingserkenningen_vestigingserkenningen","one-to-many","VESTIGINGSCODE","high",NA
+"onderwijsinstellingserkenningen","relaties_onderwijsinstellingserkenningen_vestigingserkenningen","one-to-many","OIE_CODE","high",NA
+"onderwijslocatiegebruiken","relaties_onderwijslocatiegebruiken_vestigingserkenningen","one-to-many","ONDERWIJSLOCATIECODE","high",NA
+"onderwijslocatie","onderwijslocatiegebruiken","one-to-many","ONDERWIJSLOCATIECODE","high",NA
