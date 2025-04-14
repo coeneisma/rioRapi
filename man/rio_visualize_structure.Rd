@@ -2,53 +2,77 @@
 % Please edit documentation in R/combine_data.R
 \name{rio_visualize_structure}
 \alias{rio_visualize_structure}
-\title{Visualiseer de relaties tussen RIO datasets}
+\title{Visualize relationships between RIO datasets}
 \usage{
 rio_visualize_structure(
-  ...,
+  datasets = NULL,
   structure = NULL,
   min_confidence = "medium",
   interactive = TRUE,
-  highlight_datasets = NULL
+  highlight_datasets = NULL,
+  find_paths = TRUE,
+  max_path_length = 3,
+  ...
 )
 }
 \arguments{
-\item{...}{Optioneel: benoemde tibbles om verbindingen tussen te visualiseren.}
+\item{datasets}{Optional character vector of dataset names to visualize.
+If NULL, all datasets in the structure will be visualized.}
 
-\item{structure}{Optioneel: RIO structuur zoals teruggegeven door rio_load_structure().
-Als NULL en er zijn geen tibbles opgegeven, wordt de structuur automatisch geladen.}
+\item{structure}{Optional RIO structure as returned by rio_load_structure().
+If NULL, the structure will be loaded automatically.}
 
-\item{min_confidence}{Minimaal betrouwbaarheidsniveau voor relaties.
-Kan "high" of "medium" zijn. Standaard is "medium".}
+\item{min_confidence}{Minimum confidence level for relationships.
+Can be "high" or "medium". Default is "medium".}
 
-\item{interactive}{Logische waarde die aangeeft of een interactieve visualisatie moet worden gemaakt
-(vereist het visNetwork pakket). Standaard is TRUE.}
+\item{interactive}{Logical indicating whether to create an interactive visualization
+(requires visNetwork package). Default is TRUE.}
 
-\item{highlight_datasets}{Character vector met namen van datasets die benadrukt moeten worden
-in de visualisatie.}
+\item{highlight_datasets}{Character vector of dataset names to highlight in the visualization.}
+
+\item{find_paths}{Logical indicating whether to find connection paths between datasets
+that are not directly connected. Default is TRUE.}
+
+\item{max_path_length}{Maximum length of connection paths to consider when find_paths is TRUE.
+Default is 3.}
+
+\item{...}{Optional named tibbles to visualize connections between (alternative method).}
 }
 \value{
-Een visualisatie-object dat de relaties tussen datasets toont.
+A visualization object showing the relationships between datasets.
 }
 \description{
-Deze functie maakt een visualisatie van de relaties tussen RIO datasets,
-op basis van de gedetecteerde structuur of op basis van de opgegeven datasets.
+This function creates a visualization of the relationships between RIO datasets
+based on the detected structure. It can show connections between specific datasets,
+including indirect connections through intermediary datasets.
 }
 \examples{
 \dontrun{
-# Visualiseer alle relaties uit de gedetecteerde structuur
+# Visualize all relationships from the detected structure
 rio_visualize_structure()
 
-# Visualiseer relaties tussen specifieke datasets
+# Visualize only the relationship between two specific datasets
+rio_visualize_structure(datasets = c("onderwijslocaties", "vestigingserkenningen"))
+
+# Find indirect connection paths between datasets that aren't directly connected
+rio_visualize_structure(
+  datasets = c("onderwijslocaties", "onderwijsinstellingserkenningen"),
+  find_paths = TRUE
+)
+
+# Specify additional parameters
+rio_visualize_structure(
+  datasets = c("onderwijslocaties", "vestigingserkenningen", "onderwijsinstellingserkenningen"),
+  highlight_datasets = c("onderwijslocaties"),
+  min_confidence = "high"
+)
+
+# Alternative method with loaded datasets
 locations <- rio_get_locations(city = "Amsterdam")
 institutions <- rio_get_data(dataset_name = "onderwijsinstellingserkenningen")
-vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
-
 rio_visualize_structure(
   locations = locations,
-  institutions = institutions,
-  vestigingen = vestigingen,
-  highlight_datasets = c("locations", "vestigingen")
+  institutions = institutions
 )
 }
 
