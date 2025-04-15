@@ -9,7 +9,7 @@ rio_find_table_paths(
   relations,
   min_confidence = "medium",
   find_paths = TRUE,
-  max_path_length = 3,
+  max_path_length = NULL,
   quiet = FALSE
 )
 }
@@ -22,7 +22,8 @@ rio_find_table_paths(
 
 \item{find_paths}{Logical indicating whether to look for indirect paths between tables}
 
-\item{max_path_length}{Maximum path length to consider when find_paths is TRUE}
+\item{max_path_length}{Maximum path length to consider when find_paths is TRUE.
+Default is NULL (no limit).}
 
 \item{quiet}{Logical indicating whether to suppress progress messages}
 }

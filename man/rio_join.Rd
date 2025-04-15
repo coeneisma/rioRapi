@@ -6,64 +6,96 @@
 \usage{
 rio_join(
   ...,
-  by_names = FALSE,
-  reference_date = NULL,
+  by_names = TRUE,
+  reference_date = Sys.Date(),
   nested = FALSE,
-  find_paths = FALSE,
-  max_path_length = 3,
-  visualize = FALSE,
+  find_paths = TRUE,
+  max_path_length = 10,
+  as_sf = FALSE,
+  remove_invalid = FALSE,
+  quiet = FALSE
+)
+
+rio_join(
+  ...,
+  by_names = TRUE,
+  reference_date = Sys.Date(),
+  nested = FALSE,
+  find_paths = TRUE,
+  max_path_length = 10,
+  as_sf = FALSE,
+  remove_invalid = FALSE,
   quiet = FALSE
 )
 }
 \arguments{
-\item{...}{Named tibbles to join or character vector of table names to load.}
+\item{...}{Character vector of table names to load or named tibbles to join.}
 
 \item{by_names}{Logical indicating whether the arguments are table names
-rather than actual datasets. Default is FALSE.}
+rather than actual datasets. Default is TRUE.}
 
-\item{reference_date}{Optional date to filter valid records. Default is NULL (no filtering).}
+\item{reference_date}{Optional date to filter valid records. Default is the current date (Sys.Date()).
+Set to NULL to disable date filtering.}
 
 \item{nested}{Logical indicating whether to return a nested tibble. Default is FALSE.}
 
 \item{find_paths}{Logical indicating whether to find indirect connection paths between datasets
-that are not directly connected. Default is FALSE.}
+that are not directly connected. Default is TRUE.}
 
 \item{max_path_length}{Maximum length of connection paths to consider when find_paths is TRUE.
-Default is 3.}
+Default is NULL (no limit).}
 
-\item{visualize}{Logical indicating whether to return a visualization instead of joined data.
-Default is FALSE.}
+\item{as_sf}{Logical indicating whether to convert the result to an sf object when 'onderwijslocaties'
+is included. Default is FALSE.}
+
+\item{remove_invalid}{Logical indicating whether to remove rows with invalid or missing coordinates
+when converting to sf. Default is FALSE.}
 
 \item{quiet}{Logical indicating whether to suppress progress messages. Default is FALSE.}
 }
 \value{
-A joined tibble, or a visualization object if visualize = TRUE.
+A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
+
+A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
 }
 \description{
 This function joins multiple RIO tables based on the relations defined in the package.
 It automatically detects relations between tables and chooses the optimal join path.
+When 'onderwijslocaties' is included, the result can be converted to an sf object.
+
+This function joins multiple RIO tables based on the relations defined in the package.
+It automatically detects relations between tables and chooses the optimal join path.
+When 'onderwijslocaties' is included, the result can be converted to an sf object.
 }
 \examples{
 \dontrun{
-# Join tables by providing the actual tibbles
-vestigingen <- rio_get_data("vestigingserkenningen")
-locaties <- rio_get_data("onderwijslocaties")
-joined_data <- rio_join(vestigingen = vestigingen, locaties = locaties)
+# Join tables by name (default method)
+joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties")
 
-# Join tables by name (easiest method)
-joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties", by_names = TRUE)
+# Return as sf object for mapping
+geo_data <- rio_join("vestigingserkenningen", "onderwijslocaties", as_sf = TRUE)
 
-# Join tables that are not directly connected
+# Join with a specific reference date
 joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
-                        by_names = TRUE, find_paths = TRUE)
+                        reference_date = as.Date("2023-01-01"))
 
 # Return a nested tibble
-nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
-                        by_names = TRUE, nested = TRUE)
+nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)
+}
 
-# Visualize the relations between tables
-viz <- rio_join("vestigingserkenningen", "onderwijslocaties",
-                by_names = TRUE, visualize = TRUE)
+\dontrun{
+# Join tables by name (default method)
+joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties")
+
+# Return as sf object for mapping
+geo_data <- rio_join("vestigingserkenningen", "onderwijslocaties", as_sf = TRUE)
+
+# Join with a specific reference date
+joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
+                        reference_date = as.Date("2023-01-01"))
+
+# Return a nested tibble
+nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)
 }
 
 }

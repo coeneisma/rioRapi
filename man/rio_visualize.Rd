@@ -2,23 +2,27 @@
 % Please edit documentation in R/relations_utils.R
 \name{rio_visualize}
 \alias{rio_visualize}
-\title{Visualize relationships between RIO datasets}
+\title{Visualize relationships between RIO tables}
 \usage{
 rio_visualize(
-  tables = NULL,
+  ...,
+  by_names = TRUE,
   highlight_tables = NULL,
   min_confidence = "medium",
   interactive = TRUE,
   as_table = FALSE,
-  quiet = FALSE,
-  max_path_length = 3
+  find_paths = TRUE,
+  max_path_length = NULL,
+  quiet = FALSE
 )
 }
 \arguments{
-\item{tables}{Optional character vector of dataset names to visualize.
-If NULL, all datasets in the structure will be visualized.}
+\item{...}{Character vector of table names to visualize.}
 
-\item{highlight_tables}{Character vector of dataset names to highlight in the visualization.}
+\item{by_names}{Logical indicating whether the arguments are table names
+rather than actual tibbles. Default is TRUE.}
+
+\item{highlight_tables}{Character vector of table names to highlight in the visualization.}
 
 \item{min_confidence}{Minimum confidence level for relationships.
 Can be "high" or "medium". Default is "medium".}
@@ -29,27 +33,33 @@ Can be "high" or "medium". Default is "medium".}
 \item{as_table}{Logical indicating whether to return relations as a table.
 Default is FALSE.}
 
+\item{find_paths}{Logical indicating whether to find connection paths between tables
+that are not directly connected. Default is TRUE.}
+
+\item{max_path_length}{Maximum length of connection paths to consider when find_paths is TRUE.
+Default is NULL (no limit).}
+
 \item{quiet}{Logical indicating whether to suppress progress messages.
 Default is FALSE.}
-
-\item{max_path_length}{Maximum length of connection paths to consider.
-Default is 3.}
 }
 \value{
-A visualization object showing the relationships between datasets.
+A visualization object showing the relationships between tables.
 }
 \description{
-This function creates a visualization of the relationships between RIO datasets
-based on the YAML-defined structure. It can show connections between specific datasets,
-including indirect connections through intermediary datasets.
+This function creates a visualization of the relationships between RIO tables
+based on the relations defined in the package.
 }
 \examples{
 \dontrun{
-# Visualize all relationships from the defined structure
+# Visualize the relationship between two specific tables
+rio_visualize("onderwijslocaties", "vestigingserkenningen")
+
+# Visualize all relationships (no arguments)
 rio_visualize()
 
-# Visualize only the relationship between two specific datasets
-rio_visualize(tables = c("onderwijslocaties", "vestigingserkenningen"))
+# Highlight specific tables
+rio_visualize("onderwijslocaties", "vestigingserkenningen",
+             highlight_tables = "onderwijslocaties")
 }
 
 }

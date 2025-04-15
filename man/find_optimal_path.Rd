@@ -4,22 +4,24 @@
 \alias{find_optimal_path}
 \title{Find the optimal path to connect datasets}
 \usage{
-find_optimal_path(dataset_names, relations, verbose = TRUE)
+find_optimal_path(
+  dataset_names,
+  relations,
+  verbose = TRUE,
+  start_with_first = TRUE
+)
 }
 \arguments{
 \item{dataset_names}{Character vector with names of datasets to connect}
 
-\item{relations}{List of relation definitions from the YAML configuration}
+\item{relations}{List of relation definitions}
 
 \item{verbose}{Logical indicating whether to display progress messages}
+
+\item{start_with_first}{Logical indicating whether to force starting with the first dataset.
+Default is TRUE.}
 }
 \value{
-A list with path information, including:
-\itemize{
-\item path: The sequence of datasets to visit
-\item connections: Details about each connection in the path
-}
-
 A list with path information, including:
 \itemize{
 \item path: The sequence of datasets to visit
@@ -31,32 +33,4 @@ This function finds the optimal path to connect multiple datasets based on
 predefined relations. It uses graph theory to determine the best possible
 connections between datasets.
 }
-\keyword{Find}
-\keyword{It}
-\keyword{This}
-\keyword{YAML.}
-\keyword{based}
-\keyword{best}
-\keyword{between}
-\keyword{connect}
-\keyword{connections}
-\keyword{datasets}
-\keyword{datasets.}
-\keyword{determine}
-\keyword{finds}
-\keyword{function}
-\keyword{graph}
-\keyword{in}
 \keyword{internal}
-\keyword{multiple}
-\keyword{on}
-\keyword{optimal}
-\keyword{path}
-\keyword{possible}
-\keyword{predefined}
-\keyword{relations}
-\keyword{stored}
-\keyword{the}
-\keyword{theory}
-\keyword{to}
-\keyword{uses}

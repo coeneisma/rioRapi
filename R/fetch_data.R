@@ -379,31 +379,19 @@ rio_get_locations <- function(city = NULL, limit = NULL,
 #'
 #' This function filters temporal data based on a reference date,
 #' keeping only records that are valid at the specified date.
-#' It prioritizes columns ending with "_PERIODE" for date filtering.
+#' It prioritizes EINDDATUM/BEGINDATUM over EINDDATUM_PERIODE/BEGINDATUM_PERIODE.
 #'
 #' @param data A tibble containing temporal data with date columns.
 #' @param reference_date The date for which records should be valid (as Date object).
 #' @param start_date_col The name of the column containing start dates.
 #'        Default is NULL, which means the function will automatically search for
-#'        appropriate columns, prioritizing those ending with "_PERIODE".
+#'        appropriate columns.
 #' @param end_date_col The name of the column containing end dates.
 #'        Default is NULL, which means the function will automatically search for
-#'        appropriate columns, prioritizing those ending with "_PERIODE".
+#'        appropriate columns.
 #'
-#' @return A filtered tibble containing only records that are valid at the reference date.
-#'
-#' @examples
-#' \dontrun{
-#' # Get educational institutions valid on January 1, 2023
-#' institutions <- rio_get_data(dataset_name = "onderwijsaanbieders")
-#' current_institutions <- rio_filter_by_reference_date(institutions, as.Date("2023-01-01"))
-#'
-#' # With custom column names
-#' custom_data <- rio_get_data(dataset_name = "custom_dataset")
-#' filtered_data <- rio_filter_by_reference_date(custom_data, as.Date("2023-01-01"),
-#'                                               start_date_col = "STARTDATUM",
-#'                                               end_date_col = "UITBEDRIJFDATUM")
-#' }
+#' @return A filtered tibble containing only records that are valid at the reference date,
+#'         or the original tibble if no suitable date columns are found.
 #'
 #' @keywords internal
 rio_filter_by_reference_date <- function(data, reference_date,
@@ -417,81 +405,81 @@ rio_filter_by_reference_date <- function(data, reference_date,
   # Check available columns in the data
   column_names <- names(data)
 
-  # If start_date_col is not provided, try to find the most appropriate one
-  if (is.null(start_date_col)) {
-    # First priority: columns ending with "_PERIODE"
-    period_start_cols <- grep("_PERIODE$", column_names, value = TRUE)
-    period_start_cols <- period_start_cols[grepl("^BEGIN|^START", period_start_cols)]
+  # Eerst de filtering op standaard datum velden proberen (hoogste prioriteit)
+  standard_start_cols <- c("BEGINDATUM", "STARTDATUM", "INGANGSDATUM", "INBEDRIJFDATUM")
+  standard_end_cols <- c("EINDDATUM", "OPHEFFINGSDATUM", "UITBEDRIJFDATUM")
 
-    # Second priority: other common start date columns
-    other_start_cols <- c("BEGINDATUM", "STARTDATUM", "INGANGSDATUM", "INBEDRIJFDATUM")
+  # Dan de periode datum velden (tweede prioriteit)
+  period_start_cols <- grep("_PERIODE$", column_names, value = TRUE)
+  period_start_cols <- period_start_cols[grepl("^BEGIN|^START", period_start_cols)]
 
-    # Combine and find first match
-    if (length(period_start_cols) > 0) {
-      start_column <- period_start_cols[1]
-    } else if (any(other_start_cols %in% column_names)) {
-      start_column <- other_start_cols[other_start_cols %in% column_names][1]
+  period_end_cols <- grep("_PERIODE$", column_names, value = TRUE)
+  period_end_cols <- period_end_cols[grepl("^EIND", period_end_cols)]
+
+  # Combineer alle mogelijke datumkolommen in volgorde van prioriteit
+  all_start_cols <- c(standard_start_cols, period_start_cols)
+  all_end_cols <- c(standard_end_cols, period_end_cols)
+
+  # Vind de eerste beschikbare start datum kolom
+  available_start_cols <- all_start_cols[all_start_cols %in% column_names]
+  available_end_cols <- all_end_cols[all_end_cols %in% column_names]
+
+  # Gebruik de opgegeven kolommen indien beschikbaar
+  if (!is.null(start_date_col)) {
+    if (start_date_col %in% column_names) {
+      available_start_cols <- c(start_date_col, setdiff(available_start_cols, start_date_col))
     } else {
-      stop("No suitable start date column found in the data")
+      message("Specified start date column '", start_date_col, "' not found in data.")
     }
-  } else {
-    if (!(start_date_col %in% column_names)) {
-      stop("Specified start date column '", start_date_col, "' not found in data")
-    }
-    start_column <- start_date_col
   }
 
-  # If end_date_col is not provided, try to find the most appropriate one
-  if (is.null(end_date_col)) {
-    # First priority: columns ending with "_PERIODE"
-    period_end_cols <- grep("_PERIODE$", column_names, value = TRUE)
-    period_end_cols <- period_end_cols[grepl("^EIND", period_end_cols)]
-
-    # Second priority: other common end date columns
-    other_end_cols <- c("EINDDATUM", "OPHEFFINGSDATUM", "UITBEDRIJFDATUM")
-
-    # Combine and find first match
-    if (length(period_end_cols) > 0) {
-      end_column <- period_end_cols[1]
-    } else if (any(other_end_cols %in% column_names)) {
-      end_column <- other_end_cols[other_end_cols %in% column_names][1]
+  if (!is.null(end_date_col)) {
+    if (end_date_col %in% column_names) {
+      available_end_cols <- c(end_date_col, setdiff(available_end_cols, end_date_col))
     } else {
-      end_column <- NULL
-      message("No end date column found. Only checking start date.")
-    }
-  } else {
-    if (!(end_date_col %in% column_names)) {
-      warning("Specified end date column '", end_date_col, "' not found in data")
-      end_column <- NULL
-    } else {
-      end_column <- end_date_col
+      message("Specified end date column '", end_date_col, "' not found in data.")
     }
   }
 
-  # Report which columns are being used
-  message("Filtering using start date column: '", start_column, "'")
-  if (!is.null(end_column)) {
-    message("Filtering using end date column: '", end_column, "'")
+  # Als er geen datumkolommen zijn, retourneer ongewijzigde data
+  if (length(available_start_cols) == 0 && length(available_end_cols) == 0) {
+    message("No suitable date columns found in the data. Returning unfiltered data.")
+    return(data)
   }
 
-  # Ensure date columns are Date objects
-  if (!inherits(data[[start_column]], "Date")) {
-    data[[start_column]] <- purrr::map_vec(data[[start_column]], rio_parse_date)
+  # Maak een kopie van de originele data
+  filtered_data <- data
+
+  # Verwerk start datum kolommen in volgorde van prioriteit
+  if (length(available_start_cols) > 0) {
+    for (start_column in available_start_cols) {
+      # Converteer naar Date object als het dat nog niet is
+      if (!inherits(filtered_data[[start_column]], "Date")) {
+        filtered_data[[start_column]] <- purrr::map_vec(filtered_data[[start_column]], rio_parse_date)
+      }
+
+      # Filter op start datum
+      filtered_data <- dplyr::filter(filtered_data,
+                                     is.na(.data[[start_column]]) | .data[[start_column]] <= reference_date)
+
+      message("Filtering using start date column: '", start_column, "'")
+    }
   }
 
-  if (!is.null(end_column) && !inherits(data[[end_column]], "Date")) {
-    data[[end_column]] <- purrr::map_vec(data[[end_column]], rio_parse_date)
-  }
+  # Verwerk eind datum kolommen in volgorde van prioriteit
+  if (length(available_end_cols) > 0) {
+    for (end_column in available_end_cols) {
+      # Converteer naar Date object als het dat nog niet is
+      if (!inherits(filtered_data[[end_column]], "Date")) {
+        filtered_data[[end_column]] <- purrr::map_vec(filtered_data[[end_column]], rio_parse_date)
+      }
 
-  # Filter data: record is valid if:
-  # 1. Start date is less than or equal to reference_date (or NA)
-  # 2. End date is greater than reference_date OR end date is NA (still valid)
-  filtered_data <- data |>
-    dplyr::filter(is.na(.data[[start_column]]) | .data[[start_column]] <= reference_date)
+      # Filter op eind datum
+      filtered_data <- dplyr::filter(filtered_data,
+                                     is.na(.data[[end_column]]) | .data[[end_column]] > reference_date)
 
-  if (!is.null(end_column)) {
-    filtered_data <- filtered_data |>
-      dplyr::filter(is.na(.data[[end_column]]) | .data[[end_column]] > reference_date)
+      message("Filtering using end date column: '", end_column, "'")
+    }
   }
 
   return(filtered_data)

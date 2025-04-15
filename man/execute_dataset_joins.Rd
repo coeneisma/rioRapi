@@ -9,7 +9,8 @@ execute_dataset_joins(
   path_info,
   relations,
   verbose = TRUE,
-  reference_date = NULL
+  reference_date = NULL,
+  start_dataset = NULL
 )
 }
 \arguments{
@@ -22,6 +23,9 @@ execute_dataset_joins(
 \item{verbose}{Logical indicating whether to display progress messages}
 
 \item{reference_date}{Optional date to filter records by}
+
+\item{start_dataset}{Optional name of the dataset to start with. Default is NULL,
+which will use the first dataset from the first connection.}
 }
 \value{
 A joined tibble

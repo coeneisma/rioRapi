@@ -142,12 +142,15 @@ rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confi
           # If no direct connection, find a path
           if (!direct_connection) {
             # Find all simple paths between these datasets
+            # Set cutoff to max_path_length if specified, otherwise no limit
+            cutoff_value <- if (!is.null(max_path_length)) max_path_length else -1
+
             paths <- igraph::all_simple_paths(
               full_graph,
               from = from_dataset,
               to = to_dataset,
               mode = "all",
-              cutoff = max_path_length
+              cutoff = cutoff_value
             )
 
             if (length(paths) > 0) {

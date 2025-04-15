@@ -7,28 +7,15 @@
 #' @param dataset_names Character vector with names of datasets to connect
 #' @param relations List of relation definitions
 #' @param verbose Logical indicating whether to display progress messages
+#' @param start_with_first Logical indicating whether to force starting with the first dataset.
+#'        Default is TRUE.
 #'
 #' @return A list with path information, including:
 #'   - path: The sequence of datasets to visit
 #'   - connections: Details about each connection in the path
 #'
 #' @keywords internal
-#' Find the optimal path to connect datasets
-#'
-#' This function finds the optimal path to connect multiple datasets based on
-#' predefined relations stored in YAML. It uses graph theory to determine the best
-#' possible connections between datasets.
-#'
-#' @param dataset_names Character vector with names of datasets to connect
-#' @param relations List of relation definitions from the YAML configuration
-#' @param verbose Logical indicating whether to display progress messages
-#'
-#' @return A list with path information, including:
-#'   - path: The sequence of datasets to visit
-#'   - connections: Details about each connection in the path
-#'
-#' @keywords internal
-find_optimal_path <- function(dataset_names, relations, verbose = TRUE) {
+find_optimal_path <- function(dataset_names, relations, verbose = TRUE, start_with_first = TRUE) {
   # Create an empty graph
   g <- igraph::make_empty_graph(n = 0, directed = FALSE)
 
@@ -89,57 +76,94 @@ find_optimal_path <- function(dataset_names, relations, verbose = TRUE) {
                collapse = " and "))
   }
 
-  # Find the optimal path (spanning tree)
-  if (length(dataset_names) > 2) {
-    # For more than 2 datasets, use minimum spanning tree to find optimal connections
-    mst <- igraph::mst(g)
+  # Determine which dataset to start with
+  if (start_with_first && length(dataset_names) > 0) {
+    start_dataset <- dataset_names[1]
+
+    if (verbose) {
+      cli::cli_alert_info("Forcing start from dataset: '{start_dataset}'")
+    }
   } else {
-    # For just 2 datasets, use the shortest path
-    shortest_path <- igraph::shortest_paths(g,
-                                            from = which(igraph::V(g)$name == dataset_names[1]),
-                                            to = which(igraph::V(g)$name == dataset_names[2]),
-                                            weights = igraph::E(g)$weight)
-    path_vertices <- shortest_path$vpath[[1]]
-    mst <- igraph::induced_subgraph(g, path_vertices)
+    # Choose a central node as a good starting point
+    eigen_cent <- igraph::eigen_centrality(g)
+    central_idx <- which.max(eigen_cent$vector)
+    start_dataset <- igraph::V(g)$name[central_idx]
+
+    if (verbose) {
+      cli::cli_alert_info("Using central dataset as start: '{start_dataset}'")
+    }
   }
 
-  # Extract the path information
+  # Instead of using BFS tree, we'll manually build connections starting from start_dataset
+  visited <- start_dataset
+  unvisited <- setdiff(dataset_names, visited)
   path_info <- list(
     path = dataset_names,
     connections = list()
   )
 
-  # Process each edge in the MST to build the connection sequence
-  for (e_id in 1:igraph::ecount(mst)) {
-    # Gebruik de opgeslagen dataset namen
-    from_dataset <- igraph::E(mst)$from_dataset[e_id]
-    to_dataset <- igraph::E(mst)$to_dataset[e_id]
+  # Function to find the best next dataset to connect to
+  find_next_dataset <- function() {
+    best_dataset <- NULL
+    best_relation <- NULL
 
-    # Als de dataset namen niet direct beschikbaar zijn, gebruik de vertex indices
-    if (is.null(from_dataset) || is.null(to_dataset)) {
-      edge <- igraph::E(mst)[[e_id]]
-      vertices <- igraph::ends(mst, edge)
-      from_dataset <- igraph::V(mst)$name[vertices[1]]
-      to_dataset <- igraph::V(mst)$name[vertices[2]]
+    # Check all edges between visited and unvisited datasets
+    for (rel_name in names(relations)) {
+      rel <- relations[[rel_name]]
+
+      if (rel$from %in% visited && rel$to %in% unvisited) {
+        best_dataset <- rel$to
+        best_relation <- rel_name
+        break
+      } else if (rel$to %in% visited && rel$from %in% unvisited) {
+        best_dataset <- rel$from
+        best_relation <- rel_name
+        break
+      }
     }
 
-    rel_name <- igraph::E(mst)$relation_name[e_id]
+    return(list(dataset = best_dataset, relation = best_relation))
+  }
 
-    # Add this connection to the path_info
+  # Iteratively build connections until all datasets are visited
+  while (length(unvisited) > 0) {
+    next_info <- find_next_dataset()
+
+    if (is.null(next_info$dataset)) {
+      warning("Unable to find path to connect all datasets from '", start_dataset, "'")
+      break
+    }
+
+    # Get the relation
+    rel <- relations[[next_info$relation]]
+
+    # Determine from/to correctly based on whether from or to is in visited
+    if (rel$from %in% visited) {
+      from_dataset <- rel$from
+      to_dataset <- rel$to
+    } else {
+      from_dataset <- rel$to
+      to_dataset <- rel$from
+    }
+
+    # Add this connection to path_info
     path_info$connections[[length(path_info$connections) + 1]] <- list(
       from = from_dataset,
       to = to_dataset,
-      relationship = relations[[rel_name]]
+      relationship = rel
     )
 
     if (verbose) {
       cli::cli_alert_info("Adding connection: {from_dataset} -> {to_dataset}")
     }
+
+    # Update visited/unvisited
+    visited <- c(visited, to_dataset)
+    unvisited <- setdiff(unvisited, to_dataset)
   }
 
   return(path_info)
 }
-
 
 #' Execute joins between datasets based on a connection path
 #'
@@ -151,11 +175,14 @@ find_optimal_path <- function(dataset_names, relations, verbose = TRUE) {
 #' @param relations List of relation definitions from the YAML configuration
 #' @param verbose Logical indicating whether to display progress messages
 #' @param reference_date Optional date to filter records by
+#' @param start_dataset Optional name of the dataset to start with. Default is NULL,
+#'        which will use the first dataset from the first connection.
 #'
 #' @return A joined tibble
 #'
 #' @keywords internal
-execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE, reference_date = NULL) {
+execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
+                                  reference_date = NULL, start_dataset = NULL) {
   # If no connections, return NULL
   if (length(path_info$connections) == 0) {
     warning("No connections found in path_info")
@@ -176,13 +203,42 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     return(NULL)
   }
 
-  # Start with the first dataset in the first connection
-  first_connection <- valid_connections[[1]]
-  current_dataset <- first_connection$from
+  # Apply reference_date filtering to each individual dataset before joining
+  if (!is.null(reference_date)) {
+    if (verbose) {
+      cli::cli_alert_info("Applying reference date filtering to all datasets: {reference_date}")
+    }
 
-  # Fallback if from is NA or NULL
-  if (is.null(current_dataset) || is.na(current_dataset)) {
-    current_dataset <- names(tibbles)[1]
+    for (dataset_name in names(tibbles)) {
+      # Probeer de tabel te filteren op datum - bij fout, gebruik de originele data
+      tryCatch({
+        filtered_data <- rio_filter_by_reference_date(tibbles[[dataset_name]], reference_date)
+        tibbles[[dataset_name]] <- filtered_data
+        if (verbose) {
+          cli::cli_alert_info("Filtered '{dataset_name}' by reference date, now has {nrow(filtered_data)} rows")
+        }
+      }, error = function(e) {
+        # Bij een fout, log een waarschuwing en gebruik de originele data
+        if (verbose) {
+          cli::cli_alert_warning("Could not filter '{dataset_name}' by reference date: {e$message}")
+          cli::cli_alert_info("Using all data from '{dataset_name}' ({nrow(tibbles[[dataset_name]])} rows)")
+        }
+      })
+    }
+  }
+
+  # Determine starting dataset
+  if (!is.null(start_dataset) && start_dataset %in% names(tibbles)) {
+    current_dataset <- start_dataset
+  } else {
+    # Default: Start with the dataset specified in the first connection
+    first_connection <- valid_connections[[1]]
+    current_dataset <- first_connection$from
+
+    # Fallback if from is NA or NULL
+    if (is.null(current_dataset) || is.na(current_dataset)) {
+      current_dataset <- names(tibbles)[1]
+    }
   }
 
   result <- tibbles[[current_dataset]]
@@ -197,24 +253,48 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     cli::cli_alert_info("Starting with dataset '{current_dataset}'")
   }
 
-  # Process each connection in the path
-  for (conn in valid_connections) {
-    # Skip invalid connections
-    if (is.null(conn$from) || is.null(conn$to) ||
-        is.na(conn$from) || is.na(conn$to)) {
-      next
+  # We need to create a joining plan that starts with our current_dataset
+  # and joins all other datasets in a valid order
+  remaining_connections <- valid_connections
+
+  while (length(remaining_connections) > 0 && length(visited) < length(tibbles)) {
+    # Find the next connection that links to a dataset we've already visited
+    next_conn_idx <- NULL
+    next_dataset <- NULL
+
+    for (i in seq_along(remaining_connections)) {
+      conn <- remaining_connections[[i]]
+
+      if (conn$from %in% visited && !(conn$to %in% visited)) {
+        next_conn_idx <- i
+        next_dataset <- conn$to
+        break
+      } else if (conn$to %in% visited && !(conn$from %in% visited)) {
+        next_conn_idx <- i
+        next_dataset <- conn$from
+        break
+      }
     }
 
-    # Determine which dataset to join next
-    if (conn$from %in% visited && !(conn$to %in% visited)) {
-      from_dataset <- conn$from
-      next_dataset <- conn$to
-    } else if (conn$to %in% visited && !(conn$from %in% visited)) {
-      from_dataset <- conn$to
-      next_dataset <- conn$from
+    # If we couldn't find a next connection, break the loop
+    if (is.null(next_conn_idx)) {
+      if (verbose) {
+        cli::cli_alert_warning("Could not find a valid path to join all datasets from '{current_dataset}'")
+      }
+      break
+    }
+
+    # Get the current connection and remove it from the list
+    curr_conn <- remaining_connections[[next_conn_idx]]
+    remaining_connections <- remaining_connections[-next_conn_idx]
+
+    # Determine from_dataset based on our visited datasets
+    if (curr_conn$from %in% visited) {
+      from_dataset <- curr_conn$from
+      to_dataset <- curr_conn$to
     } else {
-      # Both datasets already visited, skip this connection
-      next
+      from_dataset <- curr_conn$to
+      to_dataset <- curr_conn$from
     }
 
     # Get the relationship information
@@ -223,15 +303,15 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     # Find the relation in the relations list that matches these datasets
     for (key in names(relations)) {
       rel <- relations[[key]]
-      if ((rel$from == from_dataset && rel$to == next_dataset) ||
-          (rel$from == next_dataset && rel$to == from_dataset)) {
+      if ((rel$from == from_dataset && rel$to == to_dataset) ||
+          (rel$from == to_dataset && rel$to == from_dataset)) {
         rel_key <- key
         break
       }
     }
 
     if (is.null(rel_key)) {
-      warning("Could not find relation definition for ", from_dataset, " -> ", next_dataset)
+      warning("Could not find relation definition for ", from_dataset, " -> ", to_dataset)
       next
     }
 
@@ -242,7 +322,7 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
 
     # Check if by_fields is properly structured
     if (is.null(by_fields)) {
-      warning("No joining fields defined for relation between ", from_dataset, " and ", next_dataset)
+      warning("No joining fields defined for relation between ", from_dataset, " and ", to_dataset)
       next
     }
 
@@ -264,7 +344,7 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     }
 
     if (verbose) {
-      cli::cli_alert_info("Joining '{next_dataset}' to result using: {by_str}")
+      cli::cli_alert_info("Joining '{to_dataset}' to result using: {by_str}")
     }
 
     # Determine which fields to use based on the direction
@@ -284,10 +364,10 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     }
 
     # Prepare the next tibble to join (handle duplicate column names)
-    next_tibble <- tibbles[[next_dataset]]
+    next_tibble <- tibbles[[to_dataset]]
 
     # Handle the 'id' column - remove it from secondary tables
-    if (has_id_column && "id" %in% names(next_tibble) && current_dataset != next_dataset) {
+    if (has_id_column && "id" %in% names(next_tibble) && current_dataset != to_dataset) {
       next_tibble <- next_tibble[, !names(next_tibble) %in% "id"]
     }
 
@@ -304,7 +384,7 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     # Rename overlapping columns in the dataset to be joined
     if (length(overlap_cols) > 0) {
       for (col in overlap_cols) {
-        names(next_tibble)[names(next_tibble) == col] <- paste0(next_dataset, "_", col)
+        names(next_tibble)[names(next_tibble) == col] <- paste0(to_dataset, "_", col)
       }
     }
 
@@ -312,61 +392,65 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
     result <- dplyr::left_join(result, next_tibble, by = by_fields)
 
     if (verbose) {
-      cli::cli_alert_success("Successfully joined '{next_dataset}', now at {nrow(result)} rows and {ncol(result)} columns")
+      cli::cli_alert_success("Successfully joined '{to_dataset}', now at {nrow(result)} rows and {ncol(result)} columns")
     }
 
     # Mark as visited
-    visited <- c(visited, next_dataset)
+    visited <- c(visited, to_dataset)
   }
 
-  # Apply reference date filtering if specified
-  if (!is.null(reference_date)) {
-    if (verbose) {
-      cli::cli_alert_info("Filtering by reference date: {reference_date}")
-    }
-
-    result <- rio_filter_by_reference_date(result, reference_date)
+  # Check if we visited all datasets
+  if (length(visited) < length(tibbles)) {
+    unvisited <- setdiff(names(tibbles), visited)
+    warning("Could not join all datasets. The following datasets were not included: ",
+            paste(unvisited, collapse = ", "))
   }
 
   return(result)
 }
 
-#' Visualize relationships between RIO datasets
+#' Visualize relationships between RIO tables
 #'
-#' This function creates a visualization of the relationships between RIO datasets
-#' based on the YAML-defined structure. It can show connections between specific datasets,
-#' including indirect connections through intermediary datasets.
+#' This function creates a visualization of the relationships between RIO tables
+#' based on the relations defined in the package.
 #'
-#' @param tables Optional character vector of dataset names to visualize.
-#'        If NULL, all datasets in the structure will be visualized.
-#' @param highlight_tables Character vector of dataset names to highlight in the visualization.
+#' @param ... Character vector of table names to visualize.
+#' @param by_names Logical indicating whether the arguments are table names
+#'        rather than actual tibbles. Default is TRUE.
+#' @param highlight_tables Character vector of table names to highlight in the visualization.
 #' @param min_confidence Minimum confidence level for relationships.
 #'        Can be "high" or "medium". Default is "medium".
 #' @param interactive Logical indicating whether to create an interactive visualization
 #'        (requires visNetwork package). Default is TRUE.
 #' @param as_table Logical indicating whether to return relations as a table.
 #'        Default is FALSE.
+#' @param find_paths Logical indicating whether to find connection paths between tables
+#'        that are not directly connected. Default is TRUE.
+#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
+#'        Default is NULL (no limit).
 #' @param quiet Logical indicating whether to suppress progress messages.
 #'        Default is FALSE.
-#' @param max_path_length Maximum length of connection paths to consider.
-#'        Default is 3.
 #'
-#' @return A visualization object showing the relationships between datasets.
+#' @return A visualization object showing the relationships between tables.
 #'
 #' @examples
 #' \dontrun{
-#' # Visualize all relationships from the defined structure
+#' # Visualize the relationship between two specific tables
+#' rio_visualize("onderwijslocaties", "vestigingserkenningen")
+#'
+#' # Visualize all relationships (no arguments)
 #' rio_visualize()
 #'
-#' # Visualize only the relationship between two specific datasets
-#' rio_visualize(tables = c("onderwijslocaties", "vestigingserkenningen"))
+#' # Highlight specific tables
+#' rio_visualize("onderwijslocaties", "vestigingserkenningen",
+#'              highlight_tables = "onderwijslocaties")
 #' }
 #'
 #' @export
-rio_visualize <- function(tables = NULL, highlight_tables = NULL,
+rio_visualize <- function(..., by_names = TRUE, highlight_tables = NULL,
                           min_confidence = "medium", interactive = TRUE,
-                          as_table = FALSE, quiet = FALSE,
-                          max_path_length = 3) {
+                          as_table = FALSE, find_paths = TRUE,
+                          max_path_length = NULL, quiet = FALSE) {
   # Load relations
   relations <- rio_load_relations()
 
@@ -375,27 +459,39 @@ rio_visualize <- function(tables = NULL, highlight_tables = NULL,
     return(rio_list_relations(as_dataframe = TRUE, relations = relations))
   }
 
-  # If tables is NULL, visualize all relations
-  if (is.null(tables)) {
-    # Use the rio_visualize_structure function directly
+  # Process inputs to handle both named tibbles and table names
+  input_args <- list(...)
+
+  # If no arguments, visualize all relations
+  if (length(input_args) == 0) {
+    # Use the rio_visualize_structure function directly with no specific tables
     result <- rio_visualize_structure(
-      datasets = tables,
+      datasets = NULL,
       relations = relations$relations,
       min_confidence = min_confidence,
       interactive = interactive,
       highlight_datasets = highlight_tables,
-      find_paths = TRUE,
+      find_paths = find_paths,
       max_path_length = max_path_length
     )
 
     return(result)
   } else {
+    # We have specific tables to visualize
+    if (by_names) {
+      # Input is table names
+      tables <- unlist(input_args)
+    } else {
+      # Input is tibbles, extract their names
+      tables <- names(input_args)
+    }
+
     # For specific tables, use the common helper function
     path_result <- rio_find_table_paths(
       tables = tables,
       relations = relations$relations,
       min_confidence = min_confidence,
-      find_paths = TRUE,
+      find_paths = find_paths,
       max_path_length = max_path_length,
       quiet = quiet
     )
@@ -407,7 +503,7 @@ rio_visualize <- function(tables = NULL, highlight_tables = NULL,
       min_confidence = min_confidence,
       interactive = interactive,
       highlight_datasets = highlight_tables,
-      find_paths = TRUE,
+      find_paths = find_paths,
       max_path_length = max_path_length
     )
 
@@ -821,49 +917,46 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #'
 #' This function joins multiple RIO tables based on the relations defined in the package.
 #' It automatically detects relations between tables and chooses the optimal join path.
+#' When 'onderwijslocaties' is included, the result can be converted to an sf object.
 #'
-#' @param ... Named tibbles to join or character vector of table names to load.
+#' @param ... Character vector of table names to load or named tibbles to join.
 #' @param by_names Logical indicating whether the arguments are table names
-#'        rather than actual datasets. Default is FALSE.
-#' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
+#'        rather than actual datasets. Default is TRUE.
+#' @param reference_date Optional date to filter valid records. Default is the current date (Sys.Date()).
+#'        Set to NULL to disable date filtering.
 #' @param nested Logical indicating whether to return a nested tibble. Default is FALSE.
 #' @param find_paths Logical indicating whether to find indirect connection paths between datasets
-#'        that are not directly connected. Default is FALSE.
+#'        that are not directly connected. Default is TRUE.
 #' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
-#'        Default is 3.
-#' @param visualize Logical indicating whether to return a visualization instead of joined data.
-#'        Default is FALSE.
+#'        Default is NULL (no limit).
+#' @param as_sf Logical indicating whether to convert the result to an sf object when 'onderwijslocaties'
+#'        is included. Default is FALSE.
+#' @param remove_invalid Logical indicating whether to remove rows with invalid or missing coordinates
+#'        when converting to sf. Default is FALSE.
 #' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
 #'
-#' @return A joined tibble, or a visualization object if visualize = TRUE.
+#' @return A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
 #'
 #' @examples
 #' \dontrun{
-#' # Join tables by providing the actual tibbles
-#' vestigingen <- rio_get_data("vestigingserkenningen")
-#' locaties <- rio_get_data("onderwijslocaties")
-#' joined_data <- rio_join(vestigingen = vestigingen, locaties = locaties)
+#' # Join tables by name (default method)
+#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties")
 #'
-#' # Join tables by name (easiest method)
-#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties", by_names = TRUE)
+#' # Return as sf object for mapping
+#' geo_data <- rio_join("vestigingserkenningen", "onderwijslocaties", as_sf = TRUE)
 #'
-#' # Join tables that are not directly connected
+#' # Join with a specific reference date
 #' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
-#'                         by_names = TRUE, find_paths = TRUE)
+#'                         reference_date = as.Date("2023-01-01"))
 #'
 #' # Return a nested tibble
-#' nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
-#'                         by_names = TRUE, nested = TRUE)
-#'
-#' # Visualize the relations between tables
-#' viz <- rio_join("vestigingserkenningen", "onderwijslocaties",
-#'                 by_names = TRUE, visualize = TRUE)
+#' nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)
 #' }
 #'
 #' @export
-rio_join <- function(..., by_names = FALSE, reference_date = NULL,
-                     nested = FALSE, find_paths = FALSE, max_path_length = 3,
-                     visualize = FALSE, quiet = FALSE) {
+rio_join <- function(..., by_names = TRUE, reference_date = Sys.Date(),
+                     nested = FALSE, find_paths = TRUE, max_path_length = 10,
+                     as_sf = FALSE, remove_invalid = FALSE, quiet = FALSE) {
   # Load relations from YAML file
   relations <- rio_load_relations()
 
@@ -893,13 +986,21 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
 
     # Load each table
     tibbles <- list()
+    loading_errors <- character(0)
+
     for (name in table_names) {
       if (!quiet) {
         cli::cli_alert_info("Loading table: {name}")
       }
       tibble_result <- tryCatch({
-        rio_get_data(table_name = name, quiet = quiet)
+        # Apply reference_date when loading data (if provided)
+        if (!is.null(reference_date)) {
+          rio_get_data(table_name = name, quiet = quiet)
+        } else {
+          rio_get_data(table_name = name, quiet = quiet)
+        }
       }, error = function(e) {
+        loading_errors <- c(loading_errors, paste("Error loading table '", name, "': ", e$message, sep = ""))
         if (!quiet) {
           cli::cli_alert_danger("Error loading table '{name}': {e$message}")
         }
@@ -914,6 +1015,17 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
       }
 
       tibbles[[name]] <- tibble_result
+    }
+
+    # Check if we have enough tables with data
+    tables_with_data <- names(tibbles)[sapply(tibbles, nrow) > 0]
+    if (length(tables_with_data) < 2) {
+      if (length(loading_errors) > 0) {
+        stop(paste("Failed to load enough tables for joining:",
+                   paste(loading_errors, collapse = "\n"), sep = "\n"))
+      } else {
+        stop("Not enough tables with data for joining (minimum 2 required)")
+      }
     }
   } else {
     # Input is already loaded tibbles
@@ -930,13 +1042,9 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
     stop("When providing tibbles directly, all must be named. Example: rio_join(table1 = df1, table2 = df2)")
   }
 
-  # If visualization is requested, return visualization
-  if (visualize) {
-    return(rio_visualize(tables = table_names, interactive = TRUE))
-  }
-
-  # Find the optimal path to connect the tables
-  path_info <- find_optimal_path(table_names, relations$relations, verbose = !quiet)
+  # Find the optimal path to connect the tables, forcing start from the first table
+  path_info <- find_optimal_path(table_names, relations$relations,
+                                 verbose = !quiet, start_with_first = TRUE)
 
   # Execute the joins based on the optimal path
   result <- execute_dataset_joins(tibbles, path_info, relations$relations,
@@ -952,6 +1060,61 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
     })
   }
 
+  # Convert to sf object if requested and 'onderwijslocaties' is included
+  if (as_sf && "onderwijslocaties" %in% table_names) {
+    if (!requireNamespace("sf", quietly = TRUE)) {
+      warning("Cannot convert to sf: sf package is not installed")
+    } else {
+      # Check if required columns exist
+      if (!all(c("GPS_LONGITUDE", "GPS_LATITUDE") %in% names(result))) {
+        if (!quiet) {
+          warning("Cannot convert to sf: GPS_LONGITUDE and/or GPS_LATITUDE columns not found")
+        }
+      } else {
+        # If remove_invalid is TRUE, remove rows with missing or invalid coordinates
+        if (remove_invalid) {
+          valid_rows <- !is.na(result$GPS_LONGITUDE) &
+            !is.na(result$GPS_LATITUDE) &
+            is.numeric(result$GPS_LONGITUDE) &
+            is.numeric(result$GPS_LATITUDE)
+
+          if (sum(!valid_rows) > 0 && !quiet) {
+            cli::cli_alert_info("Removing {sum(!valid_rows)} rows with invalid or missing coordinates")
+          }
+
+          result <- result[valid_rows, ]
+
+          # If all rows were invalid, return original result
+          if (nrow(result) == 0) {
+            if (!quiet) {
+              cli::cli_alert_warning("No valid coordinates found, returning non-sf result")
+            }
+            return(result)
+          }
+        }
+
+        # Convert to sf object
+        tryCatch({
+          result_sf <- sf::st_as_sf(
+            result,
+            coords = c("GPS_LONGITUDE", "GPS_LATITUDE"),
+            crs = 4326
+          )
+
+          if (!quiet) {
+            cli::cli_alert_success("Converted to sf object with {nrow(result_sf)} points")
+          }
+
+          result <- result_sf
+        }, error = function(e) {
+          if (!quiet) {
+            cli::cli_alert_danger("Error converting to sf: {e$message}")
+          }
+        })
+      }
+    }
+  }
+
   if (!quiet) {
     cli::cli_alert_success("All tables successfully joined. Final result has {nrow(result)} rows and {ncol(result)} columns")
   }
@@ -961,122 +1124,214 @@ rio_join <- function(..., by_names = FALSE, reference_date = NULL,
 
 
 
-#' Join tables using predefined relations from YAML configuration
+#' Join RIO tables based on predefined relations
 #'
-#' This function joins multiple tables based on predefined relations stored in the
-#' RIO relations YAML file. It finds the optimal path between tables and performs
-#' the joins accordingly.
+#' This function joins multiple RIO tables based on the relations defined in the package.
+#' It automatically detects relations between tables and chooses the optimal join path.
+#' When 'onderwijslocaties' is included, the result can be converted to an sf object.
 #'
-#' @param ... Named tibbles to join or character vector of table names to load.
+#' @param ... Character vector of table names to load or named tibbles to join.
 #' @param by_names Logical indicating whether the arguments are table names
-#'        rather than actual table. Default is FALSE.
-#' @param relations Optional list of relations. If NULL, relations are loaded from the default file.
-#' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
-#' @param nested Logical indicating whether to return the result as a nested tibble.
-#'        Default is FALSE.
-#' @param visualize Logical indicating whether to return a visualization of the connection path
-#'        instead of the joined data. Default is FALSE.
-#' @param verbose Logical indicating whether to display detailed connection information.
-#'        Default is TRUE.
+#'        rather than actual datasets. Default is TRUE.
+#' @param reference_date Optional date to filter valid records. Default is the current date (Sys.Date()).
+#'        Set to NULL to disable date filtering.
+#' @param nested Logical indicating whether to return a nested tibble. Default is FALSE.
+#' @param find_paths Logical indicating whether to find indirect connection paths between datasets
+#'        that are not directly connected. Default is TRUE.
+#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
+#'        Default is NULL (no limit).
+#' @param as_sf Logical indicating whether to convert the result to an sf object when 'onderwijslocaties'
+#'        is included. Default is FALSE.
+#' @param remove_invalid Logical indicating whether to remove rows with invalid or missing coordinates
+#'        when converting to sf. Default is FALSE.
+#' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
 #'
-#' @return A joined tibble with data from all input tibbles, or a visualization object if visualize = TRUE.
+#' @return A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
 #'
 #' @examples
 #' \dontrun{
-#' # Provide actual tibbles
-#' vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
-#' locaties <- rio_get_data(dataset_name = "onderwijslocaties")
-#' joined_data <- rio_join_tables(vestigingen = vestigingen, locaties = locaties)
+#' # Join tables by name (default method)
+#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties")
 #'
-#' # Or provide dataset names (will load data automatically)
-#' joined_data <- rio_join_tables("vestigingserkenningen",
-#'                                  "onderwijslocaties",
-#'                                  by_names = TRUE)
+#' # Return as sf object for mapping
+#' geo_data <- rio_join("vestigingserkenningen", "onderwijslocaties", as_sf = TRUE)
 #'
-#' # Create a nested result
-#' nested_data <- rio_join_tables("vestigingserkenningen",
-#'                                  "onderwijslocaties",
-#'                                  by_names = TRUE,
-#'                                  nested = TRUE)
+#' # Join with a specific reference date
+#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
+#'                         reference_date = as.Date("2023-01-01"))
 #'
-#' # Visualize the connection path
-#' viz <- rio_join_tables("vestigingserkenningen",
-#'                          "onderwijslocaties",
-#'                          by_names = TRUE,
-#'                          visualize = TRUE)
+#' # Return a nested tibble
+#' nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)
 #' }
 #'
-#' @keywords internal
-rio_join_tables <- function(..., by_names = FALSE, relations = NULL,
-                              reference_date = NULL, nested = FALSE,
-                              visualize = FALSE, verbose = TRUE) {
-  # Process inputs
+#' @export
+rio_join <- function(..., by_names = TRUE, reference_date = Sys.Date(),
+                     nested = FALSE, find_paths = TRUE, max_path_length = 10,
+                     as_sf = FALSE, remove_invalid = FALSE, quiet = FALSE) {
+  # Load relations from YAML file
+  relations <- rio_load_relations()
+
+  # Process inputs to handle both named tibbles and table names
   input_args <- list(...)
 
-  # Handle two different input types
   if (by_names) {
-    # Input is dataset names, load the data
-    dataset_names <- unlist(input_args)
-    if (verbose) {
-      cli::cli_alert_info("Loading {length(dataset_names)} datasets")
+    # Input is table names, load the data
+    table_names <- unlist(input_args)
+
+    # Use the common helper function to find paths between tables
+    path_result <- rio_find_table_paths(
+      tables = table_names,
+      relations = relations$relations,
+      min_confidence = "medium",
+      find_paths = find_paths,
+      max_path_length = max_path_length,
+      quiet = quiet
+    )
+
+    # Update with all tables that need to be included
+    table_names <- path_result$tables
+
+    if (!quiet) {
+      cli::cli_alert_info("Loading {length(table_names)} tables")
     }
+
+    # Load each table
     tibbles <- list()
-    for (name in dataset_names) {
-      if (verbose) {
-        cli::cli_alert_info("Loading dataset: {name}")
+    loading_errors <- character(0)
+
+    for (name in table_names) {
+      if (!quiet) {
+        cli::cli_alert_info("Loading table: {name}")
       }
-      tibbles[[name]] <- rio_get_data(dataset_name = name)
+      tibble_result <- tryCatch({
+        # Apply reference_date when loading data (if provided)
+        if (!is.null(reference_date)) {
+          rio_get_data(table_name = name, quiet = quiet)
+        } else {
+          rio_get_data(table_name = name, quiet = quiet)
+        }
+      }, error = function(e) {
+        loading_errors <- c(loading_errors, paste("Error loading table '", name, "': ", e$message, sep = ""))
+        if (!quiet) {
+          cli::cli_alert_danger("Error loading table '{name}': {e$message}")
+        }
+        # Return empty tibble
+        tibble::tibble()
+      })
+
+      if (nrow(tibble_result) == 0) {
+        if (!quiet) {
+          cli::cli_alert_warning("No data found for table '{name}'")
+        }
+      }
+
+      tibbles[[name]] <- tibble_result
+    }
+
+    # Check if we have enough tables with data
+    tables_with_data <- names(tibbles)[sapply(tibbles, nrow) > 0]
+    if (length(tables_with_data) < 2) {
+      if (length(loading_errors) > 0) {
+        stop(paste("Failed to load enough tables for joining:",
+                   paste(loading_errors, collapse = "\n"), sep = "\n"))
+      } else {
+        stop("Not enough tables with data for joining (minimum 2 required)")
+      }
     }
   } else {
     # Input is already loaded tibbles
     tibbles <- input_args
-    dataset_names <- names(tibbles)
+    table_names <- names(tibbles)
   }
 
-  # Check if tibbles were provided
+  # Validate inputs
   if (length(tibbles) < 2) {
-    stop("At least two datasets must be provided for joining")
+    stop("At least two tables must be provided for joining")
   }
 
-  # Load relations if not provided
-  if (is.null(relations)) {
-    rel_data <- rio_load_relations()
-    relations <- rel_data$relations
-    if (length(relations) == 0) {
-      stop("No relations defined in the YAML configuration. Please define relations first.")
-    }
-  } else if (is.list(relations) && !is.null(relations$relations)) {
-    # If complete relations structure is provided, extract just the relations part
-    relations <- relations$relations
+  if (!by_names && "" %in% table_names) {
+    stop("When providing tibbles directly, all must be named. Example: rio_join(table1 = df1, table2 = df2)")
   }
 
-  # Check for unnamed parameters when not using by_names
-  if (!by_names && "" %in% dataset_names) {
-    stop("When providing tibbles directly, all must be named. Example: rio_join_datasets(dataset1 = df1, dataset2 = df2)")
-  }
-
-  if (verbose) {
-    cli::cli_alert_info("Joining {length(dataset_names)} datasets: {paste(dataset_names, collapse = ', ')}")
-  }
-
-  # Find the optimal path to connect the datasets
-  path_info <- find_optimal_path(dataset_names, relations, verbose)
-
-  # If visualization is requested, return that instead
-  if (visualize) {
-    return(visualize_path(path_info, relations, dataset_names))
-  }
+  # Find the optimal path to connect the tables, forcing start from the first table
+  path_info <- find_optimal_path(table_names, relations$relations,
+                                 verbose = !quiet, start_with_first = TRUE)
 
   # Execute the joins based on the optimal path
-  result <- execute_dataset_joins(tibbles, path_info, relations, verbose, reference_date)
+  result <- execute_dataset_joins(tibbles, path_info, relations$relations,
+                                  verbose = !quiet, reference_date = reference_date)
 
   # Format as nested tibble if requested
   if (nested) {
-    result <- nest_result(result, dataset_names, path_info)
+    tryCatch({
+      result <- nest_result(result, table_names, path_info)
+    }, error = function(e) {
+      warning("Failed to create nested result: ", e$message,
+              "\nReturning flat joined table instead.")
+    })
   }
 
-  if (verbose) {
-    cli::cli_alert_success("All datasets successfully joined. Final result has {nrow(result)} rows and {ncol(result)} columns")
+  # Convert to sf object if requested and GPS coordinates zijn aanwezig
+  if (as_sf && all(c("GPS_LONGITUDE", "GPS_LATITUDE") %in% names(result))) {
+    if (!requireNamespace("sf", quietly = TRUE)) {
+      if (!quiet) {
+        warning("Cannot convert to sf: sf package is not installed")
+      }
+    } else {
+      # Identificeer rijen met ontbrekende of ongeldige coördinaten
+      invalid_coords <- is.na(result$GPS_LONGITUDE) |
+        is.na(result$GPS_LATITUDE) |
+        !is.numeric(result$GPS_LONGITUDE) |
+        !is.numeric(result$GPS_LATITUDE)
+
+      # Toon aantal rijen met ongeldige coördinaten
+      invalid_count <- sum(invalid_coords)
+      if (invalid_count > 0) {
+        message(sprintf("Found %d rows with invalid or missing coordinates.", invalid_count))
+      }
+
+      # Filter ongeldige coördinaten altijd uit voor sf conversie (anders werkt het niet)
+      valid_result <- result[!invalid_coords, ]
+
+      if (nrow(valid_result) == 0) {
+        warning("No valid coordinates found, returning non-sf result")
+        return(result)  # Return original data if no valid coordinates
+      }
+
+      # Toon hoeveel rijen overblijven
+      if (!quiet && invalid_count > 0) {
+        message(sprintf("Converting %d/%d rows with valid coordinates to sf object.",
+                        nrow(valid_result), nrow(result)))
+      }
+
+      # Convert to sf object
+      tryCatch({
+        result_sf <- sf::st_as_sf(
+          valid_result,
+          coords = c("GPS_LONGITUDE", "GPS_LATITUDE"),
+          crs = 4326
+        )
+
+        if (!quiet) {
+          cli::cli_alert_success("Successfully created sf object with {nrow(result_sf)} points")
+        }
+
+        # Vervang het originele resultaat door het sf-object
+        result <- result_sf
+      }, error = function(e) {
+        if (!quiet) {
+          cli::cli_alert_danger("Error converting to sf: {e$message}")
+        }
+      })
+    }
+  } else if (as_sf && !all(c("GPS_LONGITUDE", "GPS_LATITUDE") %in% names(result))) {
+    if (!quiet) {
+      warning("Cannot convert to sf: GPS_LONGITUDE and/or GPS_LATITUDE columns not found in the result")
+    }
+  }
+
+  if (!quiet) {
+    cli::cli_alert_success("All tables successfully joined. Final result has {nrow(result)} rows and {ncol(result)} columns")
   }
 
   return(result)
@@ -1713,7 +1968,8 @@ rio_find_connections <- function(dataset_names, relations, min_confidence = "med
 #' @param relations List of relation definitions
 #' @param min_confidence Minimum confidence level for relationships ("high" or "medium")
 #' @param find_paths Logical indicating whether to look for indirect paths between tables
-#' @param max_path_length Maximum path length to consider when find_paths is TRUE
+#' @param max_path_length Maximum path length to consider when find_paths is TRUE.
+#'        Default is NULL (no limit).
 #' @param quiet Logical indicating whether to suppress progress messages
 #'
 #' @return A list containing:
@@ -1722,7 +1978,7 @@ rio_find_connections <- function(dataset_names, relations, min_confidence = "med
 #'
 #' @keywords internal
 rio_find_table_paths <- function(tables, relations, min_confidence = "medium",
-                                 find_paths = TRUE, max_path_length = 3, quiet = FALSE) {
+                                 find_paths = TRUE, max_path_length = NULL, quiet = FALSE) {
   # Make sure we have a valid list of relations
   if (is.list(relations) && !is.null(relations$relations)) {
     # If complete structure is provided, extract just the relations
@@ -1840,14 +2096,17 @@ rio_find_table_paths <- function(tables, relations, min_confidence = "medium",
           to_idx <- which(igraph::V(g)$name == to_table)
 
           if (length(from_idx) > 0 && length(to_idx) > 0) {
-            # Find all simple paths between these tables
+            # Find all simple paths between these tables, with appropriate cutoff
             try({
+              # Set cutoff to max_path_length if specified, otherwise no limit
+              cutoff_value <- if (!is.null(max_path_length)) max_path_length else -1
+
               paths <- igraph::all_simple_paths(
                 g,
                 from = from_idx,
                 to = to_idx,
                 mode = "all",
-                cutoff = max_path_length
+                cutoff = cutoff_value
               )
 
               if (length(paths) > 0) {
@@ -1875,8 +2134,7 @@ rio_find_table_paths <- function(tables, relations, min_confidence = "medium",
                           "': ", paste(path_tables, collapse = " -> "))
                 }
               } else if (!quiet) {
-                message("No path found between '", from_table, "' and '", to_table,
-                        "' within maximum path length of ", max_path_length)
+                message("No path found between '", from_table, "' and '", to_table, "'")
               }
             }, silent = TRUE)
           } else if (!quiet) {
