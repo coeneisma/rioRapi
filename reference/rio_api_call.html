@@ -9,7 +9,7 @@ the parsed JSON response."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">rioRapi</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9001</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,25 +41,14 @@ the parsed JSON response.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">rio_api_call</span><span class="op">(</span></span>
-<span>  req <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  <span class="va">endpoint</span>,</span>
-<span>  method <span class="op">=</span> <span class="st">"GET"</span>,</span>
-<span>  body <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  simplify <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">rio_api_call</span><span class="op">(</span><span class="va">endpoint</span>, method <span class="op">=</span> <span class="st">"GET"</span>, body <span class="op">=</span> <span class="cn">NULL</span>, simplify <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
 
 
-<dl><dt id="arg-req">req<a class="anchor" aria-label="anchor" href="#arg-req"></a></dt>
-<dd><p>A request object, typically created with <code><a href="rio_api_connection.html">rio_api_connection()</a></code>.
-If NULL, a new connection will be created.</p></dd>
-
-
-<dt id="arg-endpoint">endpoint<a class="anchor" aria-label="anchor" href="#arg-endpoint"></a></dt>
+<dl><dt id="arg-endpoint">endpoint<a class="anchor" aria-label="anchor" href="#arg-endpoint"></a></dt>
 <dd><p>The API endpoint to call.</p></dd>
 
 
@@ -73,6 +62,11 @@ If NULL, a new connection will be created.</p></dd>
 
 <dt id="arg-simplify">simplify<a class="anchor" aria-label="anchor" href="#arg-simplify"></a></dt>
 <dd><p>Whether to simplify the response to R vectors/matrices. Default is TRUE.</p></dd>
+
+
+<dt id="arg-req">req<a class="anchor" aria-label="anchor" href="#arg-req"></a></dt>
+<dd><p>A request object, typically created with <code><a href="rio_api_connection.html">rio_api_connection()</a></code>.
+If NULL, a new connection will be created.</p></dd>
 
 </dl></div>
     <div class="section level2">

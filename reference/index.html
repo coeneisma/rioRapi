@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">rioRapi</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9001</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,9 +31,9 @@
     </div>
 
     <div class="section level2">
-      <h2 id="all-functions">All functions<a class="anchor" aria-label="anchor" href="#all-functions"></a></h2>
+      <h2 id="explore-the-meta-data">Explore the meta data<a class="anchor" aria-label="anchor" href="#explore-the-meta-data"></a></h2>
 
-
+      <div class="section-desc"><p>Functions for exploring the RIO-data and its relations.</p></div>
 
 
     </div><div class="section level2">
@@ -43,22 +43,39 @@
 
       <dl><dt>
 
-          <code><a href="rio_combine.html">rio_combine()</a></code>
+          <code><a href="rio_list_tables.html">rio_list_tables()</a></code>
 
         </dt>
-        <dd>Combine RIO datasets</dd>
+        <dd>List available tables in the RIO package</dd>
       </dl><dl><dt>
+
+          <code><a href="rio_list_fields.html">rio_list_fields()</a></code>
+
+        </dt>
+        <dd>List fields in a RIO table</dd>
+      </dl><dl><dt>
+
+          <code><a href="rio_list_relations.html">rio_list_relations()</a></code>
+
+        </dt>
+        <dd>List relationships between RIO tables</dd>
+      </dl></div><div class="section level2">
+      <h2 id="get-the-data">Get the data<a class="anchor" aria-label="anchor" href="#get-the-data"></a></h2>
+
+      <div class="section-desc"><p>Functions for retreiving and joining the data</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
 
           <code><a href="rio_get_data.html">rio_get_data()</a></code>
 
         </dt>
-        <dd>Fetch data from a RIO dataset</dd>
-      </dl><dl><dt>
-
-          <code><a href="rio_get_fields.html">rio_get_fields()</a></code>
-
-        </dt>
-        <dd>Get information about fields in a dataset</dd>
+        <dd>Fetch data from a RIO table with date filtering</dd>
       </dl><dl><dt>
 
           <code><a href="rio_get_locations.html">rio_get_locations()</a></code>
@@ -70,27 +87,39 @@
           <code><a href="rio_join.html">rio_join()</a></code>
 
         </dt>
-        <dd>Join RIO datasets with dataframe lookup</dd>
-      </dl><dl><dt>
+        <dd>Join RIO tables based on predefined relations</dd>
+      </dl></div><div class="section level2">
+      <h2 id="visualize-the-data">Visualize the data<a class="anchor" aria-label="anchor" href="#visualize-the-data"></a></h2>
 
-          <code><a href="rio_list_datasets.html">rio_list_datasets()</a></code>
+      <div class="section-desc"><p>Functions for visualizing the RIO-data and its relations.</p></div>
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="rio_visualize_relations.html">rio_visualize_relations()</a></code>
 
         </dt>
-        <dd>List available datasets in the RIO package</dd>
+        <dd>Visualize relationships between RIO tables</dd>
+      </dl><dl><dt>
+
+          <code><a href="rio_visualize_timeline.html">rio_visualize_timeline()</a></code>
+
+        </dt>
+        <dd>Plot timeline of institutions or entities</dd>
       </dl><dl><dt>
 
           <code><a href="rio_map_locations.html">rio_map_locations()</a></code>
 
         </dt>
         <dd>Create a map of educational locations</dd>
-      </dl><dl><dt>
-
-          <code><a href="rio_timeline.html">rio_timeline()</a></code>
-
-        </dt>
-        <dd>Plot timeline of institutions or entities</dd>
       </dl></div>
-  </main></div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">
