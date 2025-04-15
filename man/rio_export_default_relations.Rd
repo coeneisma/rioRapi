@@ -54,3 +54,4 @@ rio_export_default_relations(destination = "~/my_project/rio_relations.yaml")
 \code{\link{rio_load_relations}} for loading relation definitions.
 \code{\link{get_rio_data_dir}} for information about the user data directory.
 }
+\keyword{internal}

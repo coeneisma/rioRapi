@@ -18,3 +18,4 @@ A list with the RIO relations structure.
 This function loads the RIO relations between tables from a YAML file.
 If the file doesn't exist, an empty relation object is returned.
 }
+\keyword{internal}

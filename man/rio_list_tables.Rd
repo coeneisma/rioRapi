@@ -4,37 +4,17 @@
 \alias{rio_list_tables}
 \title{List available tables in the RIO package}
 \usage{
-rio_list_tables(include_description = TRUE, pattern = NULL)
-
-rio_list_tables(include_description = TRUE, pattern = NULL)
-}
-\arguments{
-\item{include_description}{Logical indicating whether to include table descriptions.
-Default is TRUE.}
-
-\item{pattern}{Optional pattern to filter table names. Default is NULL (no filtering).}
+rio_list_tables()
 }
 \value{
 A tibble with information about each table, including ID, name, and description.
-
-A tibble with information about each table.
 }
 \description{
 This function retrieves a list of all available tables (resources) in the RIO package.
-
-This function retrieves a list of all available tables in the RIO package.
 }
 \examples{
 \dontrun{
 tables <- rio_list_tables()
-}
-
-\dontrun{
-# List all available tables
-tables <- rio_list_tables()
-
-# List only tables with "opleiding" in the name
-opleiding_tables <- rio_list_tables(pattern = "opleiding")
 }
 
 }

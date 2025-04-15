@@ -24,3 +24,4 @@ Invisibly the name of the file where the relations were saved.
 \description{
 This function saves the RIO relations structure to a YAML file.
 }
+\keyword{internal}

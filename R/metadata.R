@@ -122,52 +122,7 @@ rio_get_fields <- function(dataset_id = NULL, dataset_name = NULL) {
   }
 }
 
-#' List available tables in the RIO package
-#'
-#' This function retrieves a list of all available tables in the RIO package.
-#'
-#' @param include_description Logical indicating whether to include table descriptions.
-#'        Default is TRUE.
-#' @param pattern Optional pattern to filter table names. Default is NULL (no filtering).
-#'
-#' @return A tibble with information about each table.
-#'
-#' @examples
-#' \dontrun{
-#' # List all available tables
-#' tables <- rio_list_tables()
-#'
-#' # List only tables with "opleiding" in the name
-#' opleiding_tables <- rio_list_tables(pattern = "opleiding")
-#' }
-#'
-#' @export
-rio_list_tables <- function(include_description = TRUE, pattern = NULL) {
-  # Retrieve tables from API
-  tables_df <- rio_list_datasets()  # Internal function still uses 'datasets'
 
-  # Filter by pattern if provided
-  if (!is.null(pattern)) {
-    tables_df <- tables_df[grepl(pattern, tables_df$name, ignore.case = TRUE), ]
-  }
-
-  # Select relevant columns based on include_description
-  if (include_description) {
-    cols_to_select <- intersect(c("id", "name", "description", "last_modified"), names(tables_df))
-  } else {
-    cols_to_select <- intersect(c("id", "name", "last_modified"), names(tables_df))
-  }
-
-  # Prepare return value
-  result <- tables_df[, cols_to_select, drop = FALSE]
-
-  # Rename columns for more clarity
-  result <- dplyr::rename(result,
-                          table_id = id,
-                          table_name = name)
-
-  return(result)
-}
 
 #' Get detailed information about a specific dataset
 #'
@@ -311,7 +266,7 @@ rio_detect_datasets <- function(force = FALSE, days_threshold = 28,
   }
 
   # Get list of all available datasets
-  datasets <- rio_list_datasets()
+  datasets <- rio_list_tables()
 
   if (nrow(datasets) == 0) {
     stop("No datasets found in RIO API")
@@ -486,39 +441,3 @@ rio_add_dataset_metadata <- function(datasets, dataset_name,
   return(datasets)
 }
 
-#' List available datasets in the RIO package
-#'
-#' This function retrieves a list of all available datasets (resources) in the RIO package.
-#'
-#' @return A tibble with information about each dataset, including ID, name, and description.
-#'
-#' @examples
-#' \dontrun{
-#' datasets <- rio_list_datasets()
-#' }
-#'
-#' @export
-rio_list_datasets <- function() {
-  # Define package_id
-  package_id <- "rio_nfo_po_vo_vavo_mbo_ho"
-
-  # Get package metadata
-  metadata <- rio_get_metadata()
-
-  # Check if resources exist
-  if (!is.null(metadata$resources) && length(metadata$resources) > 0) {
-    # Resources data frame
-    resources_df <- tibble::as_tibble(metadata$resources)
-
-    # Select relevant columns, if they exist
-    cols_to_select <- intersect(
-      c("id", "name", "description", "format", "last_modified", "url", "created"),
-      names(resources_df)
-    )
-
-    return(resources_df[, cols_to_select, drop = FALSE])
-  } else {
-    warning("No resources found in the package: ", package_id)
-    return(tibble::tibble())
-  }
-}

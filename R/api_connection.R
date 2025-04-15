@@ -117,7 +117,7 @@ rio_api_check <- function() {
 #' @keywords internal
 get_dataset_id_from_name <- function(dataset_name) {
   # Get list of datasets
-  datasets <- rio_list_datasets()
+  datasets <- rio_list_tables()
 
   # Find dataset with matching name
   match_idx <- which(datasets$name == dataset_name)

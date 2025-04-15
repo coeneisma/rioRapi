@@ -108,7 +108,7 @@ rio_map_locations <- function(locations, popup_vars = NULL, color = "blue", radi
 #' }
 #'
 #' @export
-rio_timeline <- function(data, id_col, name_col = NULL,
+rio_visualize_timeline <- function(data, id_col, name_col = NULL,
                          start_date_col = "BEGINDATUM", end_date_col = "EINDDATUM") {
   # Check if required packages are available
   if (!requireNamespace("ggplot2", quietly = TRUE)) {

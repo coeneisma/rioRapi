@@ -447,7 +447,7 @@ execute_dataset_joins <- function(tibbles, path_info, relations, verbose = TRUE,
 #' }
 #'
 #' @export
-rio_visualize <- function(..., by_names = TRUE, highlight_tables = NULL,
+rio_visualize_relations <- function(..., by_names = TRUE, highlight_tables = NULL,
                           min_confidence = "medium", interactive = TRUE,
                           as_table = FALSE, find_paths = TRUE,
                           max_path_length = NULL, quiet = FALSE) {
@@ -657,6 +657,358 @@ visualize_path <- function(path_info, relations, dataset_names, interactive = TR
   }
 }
 
+
+#' Visualize relationships between RIO datasets
+#'
+#' This function creates a visualization of the relationships between RIO datasets
+#' based on the YAML-defined structure. It can show connections between specific datasets,
+#' including indirect connections through intermediary datasets.
+#'
+#' @param datasets Optional character vector of dataset names to visualize.
+#'        If NULL, all datasets in the structure will be visualized.
+#' @param relations Optional relation definitions. If NULL, relations are loaded from the YAML file.
+#' @param min_confidence Minimum confidence level for relationships.
+#'        Can be "high" or "medium". Default is "medium".
+#' @param interactive Logical indicating whether to create an interactive visualization
+#'        (requires visNetwork package). Default is TRUE.
+#' @param highlight_datasets Character vector of dataset names to highlight in the visualization.
+#' @param find_paths Logical indicating whether to find connection paths between datasets
+#'        that are not directly connected. Default is TRUE.
+#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
+#'        Default is 3.
+#' @param ... Optional named tibbles to visualize connections between (alternative method).
+#'
+#' @return A visualization object showing the relationships between datasets.
+#'
+#' @keywords internal
+rio_visualize_structure <- function(datasets = NULL, relations = NULL, min_confidence = "medium",
+                                    interactive = TRUE, highlight_datasets = NULL,
+                                    find_paths = TRUE, max_path_length = 3, ...) {
+  # Get the input tibbles if provided via ...
+  tibbles <- list(...)
+
+  # If tibbles are provided, use them for connection detection
+  if (length(tibbles) > 0) {
+    # Detect connections between the provided tibbles using the defined relations
+    # instead of auto-detecting them
+    if (is.null(relations)) {
+      relations_data <- rio_load_relations()
+      relations <- relations_data$relations
+    } else if (!is.null(relations$relations)) {
+      # If complete structure is provided, extract just the relations
+      relations <- relations$relations
+    }
+
+    # Find connections between the provided tibbles based on known relations
+    connections <- rio_find_connections(names(tibbles), relations,
+                                        min_confidence = min_confidence)
+
+    # Visualize the detected connections
+    return(rio_visualize_connections(
+      connections,
+      min_confidence = min_confidence,
+      interactive = interactive
+    ))
+  } else {
+    # Load relations if not provided
+    if (is.null(relations)) {
+      relations_data <- rio_load_relations()
+      relations <- relations_data$relations
+    } else if (!is.null(relations$relations)) {
+      # If complete structure is provided, extract just the relations
+      relations <- relations$relations
+    }
+
+    # Determine which datasets to visualize
+    if (is.null(datasets)) {
+      # If no datasets specified, use all datasets mentioned in the relations
+      all_datasets <- unique(c(
+        sapply(relations, function(rel) rel$from),
+        sapply(relations, function(rel) rel$to)
+      ))
+      dataset_names <- all_datasets
+    } else {
+      dataset_names <- datasets
+    }
+
+    # Create a graph representation of the structure for finding paths
+    full_graph <- igraph::graph_from_data_frame(d = data.frame(source = character(0),
+                                                               target = character(0)),
+                                                directed = FALSE)
+
+    # Add all datasets as vertices to the full graph
+    all_dataset_names <- unique(c(
+      sapply(relations, function(rel) rel$from),
+      sapply(relations, function(rel) rel$to)
+    ))
+
+    for (dataset in all_dataset_names) {
+      full_graph <- igraph::add_vertices(full_graph, 1, name = dataset)
+    }
+
+    # Add all edges to the full graph (we'll use this for path finding)
+    for (rel_name in names(relations)) {
+      rel <- relations[[rel_name]]
+
+      # Skip relations with insufficient confidence
+      if ((min_confidence == "high" && rel$confidence != "high")) {
+        next
+      }
+
+      # Add the edge
+      full_graph <- igraph::add_edges(full_graph, c(rel$from, rel$to))
+
+      # Store relationship details
+      edge_id <- igraph::ecount(full_graph)
+      igraph::E(full_graph)$relationship_name[edge_id] <- rel_name
+    }
+
+    # Create the visualization graph
+    g <- igraph::graph_from_data_frame(d = data.frame(source = character(0),
+                                                      target = character(0)),
+                                       directed = FALSE)
+
+    # If we need to find paths between datasets
+    datasets_to_include <- dataset_names
+    connection_paths <- list()
+
+    if (find_paths && length(dataset_names) > 1 && length(dataset_names) < length(all_dataset_names)) {
+      # Find all paths between each pair of datasets
+      for (i in 1:(length(dataset_names) - 1)) {
+        for (j in (i + 1):length(dataset_names)) {
+          from_dataset <- dataset_names[i]
+          to_dataset <- dataset_names[j]
+
+          # Check if there's a direct connection
+          direct_connection <- FALSE
+          for (rel_name in names(relations)) {
+            rel <- relations[[rel_name]]
+            if ((rel$from == from_dataset && rel$to == to_dataset) ||
+                (rel$from == to_dataset && rel$to == from_dataset)) {
+              direct_connection <- TRUE
+              break
+            }
+          }
+
+          # If no direct connection, find a path
+          if (!direct_connection) {
+            # Find all simple paths between these datasets
+            # Set cutoff to max_path_length if specified, otherwise no limit
+            cutoff_value <- if (!is.null(max_path_length)) max_path_length else -1
+
+            paths <- igraph::all_simple_paths(
+              full_graph,
+              from = from_dataset,
+              to = to_dataset,
+              mode = "all",
+              cutoff = cutoff_value
+            )
+
+            if (length(paths) > 0) {
+              # Get the shortest path
+              shortest_path <- paths[[1]]
+              for (p in paths) {
+                if (length(p) < length(shortest_path)) {
+                  shortest_path <- p
+                }
+              }
+
+              # Add all datasets in the path to datasets_to_include
+              path_datasets <- igraph::V(full_graph)$name[shortest_path]
+              datasets_to_include <- unique(c(datasets_to_include, path_datasets))
+
+              # Store path information
+              connection_paths[[length(connection_paths) + 1]] <- list(
+                from = from_dataset,
+                to = to_dataset,
+                path = path_datasets
+              )
+            } else {
+              warning("No connection path found between ", from_dataset, " and ", to_dataset,
+                      " with maximum path length ", max_path_length)
+            }
+          }
+        }
+      }
+    }
+
+    # Add all relevant datasets as vertices
+    for (dataset in datasets_to_include) {
+      g <- igraph::add_vertices(g, 1, name = dataset)
+    }
+
+    # Add highlight property to vertices
+    igraph::V(g)$highlight <- igraph::V(g)$name %in% highlight_datasets
+
+    # Add special property for datasets that were in the original selection
+    igraph::V(g)$original <- igraph::V(g)$name %in% dataset_names
+
+    # Add edges for direct connections and connection paths
+    edge_labels <- character(0)
+    edge_colors <- character(0)
+    edge_widths <- numeric(0)
+    edge_types <- character(0)  # To track if an edge is part of a path
+
+    # Add direct connections
+    for (rel_name in names(relations)) {
+      rel <- relations[[rel_name]]
+
+      # Only add edges between datasets we're including
+      if (rel$from %in% datasets_to_include && rel$to %in% datasets_to_include) {
+
+        # Skip relations with insufficient confidence
+        if ((min_confidence == "high" && rel$confidence != "high")) {
+          next
+        }
+
+        # Add an edge
+        g <- igraph::add_edges(g, c(rel$from, rel$to))
+
+        # Get the joining field(s) for the edge label
+        if (!is.null(rel$by)) {
+          if (is.character(rel$by) && !is.null(names(rel$by)) && any(names(rel$by) != "")) {
+            # Named fields (different names in source and target)
+            label_parts <- character(0)
+            for (i in seq_along(rel$by)) {
+              if (names(rel$by)[i] == "") {
+                label_parts <- c(label_parts, rel$by[i])
+              } else {
+                label_parts <- c(label_parts, paste(names(rel$by)[i], "=", rel$by[i]))
+              }
+            }
+            join_fields <- paste(label_parts, collapse = "\n")
+          } else {
+            # Unnamed fields (same name in both datasets)
+            join_fields <- paste(rel$by, collapse = "\n")
+          }
+        } else {
+          join_fields <- "Unknown connection"
+        }
+
+        edge_id <- igraph::ecount(g)
+        edge_labels[edge_id] <- join_fields
+
+        # Assign color and width based on confidence
+        edge_colors[edge_id] <- ifelse(rel$confidence == "high", "green", "orange")
+        edge_widths[edge_id] <- ifelse(rel$confidence == "high", 3, 2)
+
+        # Direct connection
+        edge_types[edge_id] <- "direct"
+      }
+    }
+
+    # Set edge attributes if there are any edges
+    if (igraph::ecount(g) > 0) {
+      igraph::E(g)$label <- edge_labels
+      igraph::E(g)$color <- edge_colors
+      igraph::E(g)$width <- edge_widths
+      igraph::E(g)$type <- edge_types
+    } else {
+      warning("No connections found between the specified datasets with the given confidence level")
+    }
+
+    # Set vertex attributes
+    igraph::V(g)$label <- igraph::V(g)$name
+    igraph::V(g)$color <- ifelse(igraph::V(g)$highlight, "yellow",
+                                 ifelse(igraph::V(g)$original, "lightblue", "lightgrey"))
+
+    # Create visualization
+    # Create visualization
+    if (interactive) {
+      # Create interactive visualization with visNetwork
+      if (!requireNamespace("visNetwork", quietly = TRUE)) {
+        warning("Package 'visNetwork' is required for interactive visualization. Using static visualization instead.")
+        interactive <- FALSE
+      } else {
+        nodes <- data.frame(
+          id = igraph::V(g)$name,
+          label = igraph::V(g)$name,
+          title = igraph::V(g)$name,  # Tooltip
+          color = igraph::V(g)$color,
+          borderWidth = ifelse(igraph::V(g)$original, 3, 1),
+          font = list(color = "black"),
+          shape = "dot",
+          size = 20,  # Larger nodes
+          stringsAsFactors = FALSE
+        )
+
+        if (igraph::ecount(g) > 0) {
+          edges <- data.frame(
+            from = igraph::get.edgelist(g)[, 1],
+            to = igraph::get.edgelist(g)[, 2],
+            label = igraph::E(g)$label,
+            color = igraph::E(g)$color,
+            width = igraph::E(g)$width,
+            title = igraph::E(g)$label,  # Tooltip
+            font = list(color = "red", size = 12),  # Red text for connection fields
+            length = 250,  # Longer edges for more space
+            arrows = "to",
+            smooth = TRUE,
+            stringsAsFactors = FALSE
+          )
+        } else {
+          edges <- data.frame(
+            from = character(0),
+            to = character(0),
+            label = character(0),
+            color = character(0),
+            width = numeric(0),
+            title = character(0),
+            stringsAsFactors = FALSE
+          )
+        }
+
+        # Create the network with better layout
+        net <- visNetwork::visNetwork(nodes, edges) |>
+          visNetwork::visOptions(highlightNearest = TRUE, selectedBy = "label") |>
+          visNetwork::visEdges(font = list(color = "red", size = 12)) |>
+          visNetwork::visNodes(font = list(size = 14)) |>
+          visNetwork::visLayout(randomSeed = 123) |>  # For consistency
+          visNetwork::visPhysics(solver = "forceAtlas2Based",
+                                 forceAtlas2Based = list(gravitationalConstant = -100,
+                                                         springLength = 200,  # More space between nodes
+                                                         springConstant = 0.05),
+                                 stabilization = list(iterations = 150))
+
+        # Apply igraph layout if possible
+        if (length(nodes$id) > 1) {
+          net <- visNetwork::visIgraphLayout(net, layout = "layout_nicely",
+                                             physics = FALSE,  # Turn off physics after layout
+                                             randomSeed = 123)
+        }
+
+        return(net)
+      }
+    }
+
+    if (!interactive) {
+      # Create static visualization with igraph
+      if (igraph::ecount(g) > 0) {
+        plot(g,
+             layout = igraph::layout_with_fr(g),
+             vertex.size = 20,
+             vertex.label.color = "black",
+             vertex.label.cex = 0.8,
+             edge.label.cex = 0.7,
+             edge.curved = 0.2,
+             main = "RIO Datasets Connection Network")
+
+        # Add legend
+        legend("bottomright",
+               legend = c("High Confidence", "Medium Confidence",
+                          "Selected Dataset", "Intermediate Dataset", "Highlighted Dataset"),
+               col = c("green", "orange", "lightblue", "lightgrey", "yellow"),
+               pch = c(NA, NA, 16, 16, 16),
+               lwd = c(3, 2, NA, NA, NA),
+               cex = 0.8)
+      } else {
+        plot.new()
+        title(main = "RIO Datasets Connection Network")
+        text(0.5, 0.5, "No connections found with the specified confidence level")
+      }
+    }
+  }
+}
 
 #' Visualize connections between RIO datasets
 #'
@@ -1301,226 +1653,6 @@ rio_join_tables <- function(..., by_names = FALSE, relations = NULL,
   return(result)
 }
 
-#' Join RIO tables based on predefined relations, including indirect paths
-#'
-#' This function joins multiple RIO tables based on the relations defined in the package.
-#' It automatically detects relations between tables, including indirect relations via intermediate tables.
-#'
-#' @param ... Named tibbles to join or character vector of table names to load.
-#' @param by_names Logical indicating whether the arguments are table names
-#'        rather than actual datasets. Default is FALSE.
-#' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
-#' @param nested Logical indicating whether to return a nested tibble. Default is FALSE.
-#' @param find_paths Logical indicating whether to find indirect paths between tables.
-#'        Default is TRUE.
-#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
-#'        Default is 3.
-#' @param verbose Logical indicating whether to display progress messages. Default is FALSE.
-#'
-#' @return A joined tibble with data from all input tibbles.
-#'
-#' @export
-rio_join_with_paths <- function(..., by_names = FALSE, reference_date = NULL,
-                                nested = FALSE, find_paths = TRUE,
-                                max_path_length = 3, verbose = FALSE) {
-
-  # Laad relaties
-  relations <- rio_load_relations()
-
-  # Verwerk invoerparameters
-  input_args <- list(...)
-
-  if (by_names) {
-    # Input zijn tabelnamen, laad de data
-    table_names <- unlist(input_args)
-    if (!verbose) {
-      message("Tabellen laden: ", paste(table_names, collapse = ", "))
-    }
-
-    # Als we indirecte paden willen vinden
-    if (find_paths && length(table_names) > 1) {
-      # Zoek alle tabellen op
-      datasets <- rio_list_datasets()
-      all_tables <- datasets$name
-
-      # Maak een grafiek van alle relaties
-      g <- igraph::make_empty_graph(directed = FALSE)
-
-      # Voeg alle tabellen toe als knopen
-      for (table in all_tables) {
-        g <- igraph::add_vertices(g, 1, name = table)
-      }
-
-      # Voeg alle relaties toe als verbindingen
-      for (rel_name in names(relations$relations)) {
-        rel <- relations$relations[[rel_name]]
-        from_idx <- which(igraph::V(g)$name == rel$from)
-        to_idx <- which(igraph::V(g)$name == rel$to)
-
-        if (length(from_idx) > 0 && length(to_idx) > 0) {
-          g <- igraph::add_edges(g, c(from_idx, to_idx))
-        }
-      }
-
-      # Zoek het kortste pad tussen alle paren van tabellen
-      all_tables_to_join <- table_names
-
-      for (i in 1:(length(table_names)-1)) {
-        for (j in (i+1):length(table_names)) {
-          from_table <- table_names[i]
-          to_table <- table_names[j]
-
-          # Controleer of er een direct pad is
-          direct_relation_exists <- FALSE
-          for (rel_name in names(relations$relations)) {
-            rel <- relations$relations[[rel_name]]
-            if ((rel$from == from_table && rel$to == to_table) ||
-                (rel$from == to_table && rel$to == from_table)) {
-              direct_relation_exists <- TRUE
-              break
-            }
-          }
-
-          # Als er geen directe relatie is, zoek een pad
-          if (!direct_relation_exists) {
-            from_idx <- which(igraph::V(g)$name == from_table)
-            to_idx <- which(igraph::V(g)$name == to_table)
-
-            if (length(from_idx) > 0 && length(to_idx) > 0) {
-              # Zoek alle paden tot max_path_length
-              paths <- igraph::all_simple_paths(g,
-                                                from = from_idx,
-                                                to = to_idx,
-                                                mode = "all",
-                                                cutoff = max_path_length)
-
-              if (length(paths) > 0) {
-                # Vind het kortste pad
-                shortest_path <- paths[[1]]
-                shortest_length <- length(shortest_path)
-
-                for (p in 2:length(paths)) {
-                  if (length(paths[[p]]) < shortest_length) {
-                    shortest_path <- paths[[p]]
-                    shortest_length <- length(paths[[p]])
-                  }
-                }
-
-                # Voeg alle tabellen in het pad toe aan de lijst
-                path_tables <- igraph::V(g)$name[shortest_path]
-                all_tables_to_join <- unique(c(all_tables_to_join, path_tables))
-
-                if (verbose) {
-                  message("Pad gevonden tussen ", from_table, " en ", to_table,
-                          ": ", paste(path_tables, collapse = " -> "))
-                }
-              } else if (verbose) {
-                message("Geen pad gevonden tussen ", from_table, " en ", to_table,
-                        " binnen max_path_length ", max_path_length)
-              }
-            }
-          }
-        }
-      }
-
-      # Update de lijst met tabellen om te laden
-      table_names <- all_tables_to_join
-
-      if (verbose) {
-        message("Tabellen om te joinen (inclusief tussentabellen): ",
-                paste(table_names, collapse = ", "))
-      }
-    }
-
-    # Laad alle benodigde tabellen
-    tibbles <- list()
-    for (name in table_names) {
-      if (verbose) {
-        message("Tabel laden: ", name)
-      }
-      tibbles[[name]] <- rio_get_data(table_name = name, quiet = !verbose)
-    }
-  } else {
-    # Input zijn reeds geladen tibbles
-    tibbles <- input_args
-    table_names <- names(tibbles)
-  }
-
-  # Controleer of er genoeg tabellen zijn om te joinen
-  if (length(tibbles) < 2) {
-    stop("Tenminste twee tabellen zijn nodig om te joinen")
-  }
-
-  # Controleer op onbenoemde parameters
-  if (!by_names && "" %in% table_names) {
-    stop("Bij het direct meegeven van tibbles moeten alle argumenten benoemd zijn. Bijvoorbeeld: rio_join_with_paths(tabel1 = df1, tabel2 = df2)")
-  }
-
-  if (verbose) {
-    message("Joinen van ", length(table_names), " tabellen: ", paste(table_names, collapse = ", "))
-  }
-
-  # Zoek het optimale pad om de tabellen te verbinden
-  path_info <- find_optimal_path(table_names, relations$relations, verbose = verbose)
-
-  # Voer joins uit op basis van het optimale pad
-  result <- execute_dataset_joins(tibbles, path_info, relations$relations, verbose = verbose, reference_date = reference_date)
-
-  # Formatteer als geneste tibble indien gewenst
-  if (nested) {
-    result <- nest_result(result, table_names, path_info)
-  }
-
-  if (verbose) {
-    message("Alle tabellen succesvol gejoind. Resultaat heeft ", nrow(result), " rijen en ", ncol(result), " kolommen")
-  }
-
-  return(result)
-}
-
-
-# # Detecteer de structuur
-# structure <- rio_detect_structure()
-#
-# # Extraheer relaties uit de structuur
-# relations <- list()
-# for (rel_name in names(structure$relationships)) {
-#   detected_rel <- structure$relationships[[rel_name]]
-#
-#   # Maak een relatie-object
-#   relation <- rio_create_relation(
-#     from = detected_rel$source,
-#     to = detected_rel$target,
-#     type = "one-to-many",  # aanpassen indien nodig
-#     from_field = detected_rel$exact_matches[1],  # eerste match gebruiken
-#     to_field = detected_rel$exact_matches[1]
-#   )
-#
-#   # Voeg toe aan relaties
-#   relations <- rio_add_relation(relations, relation)
-# }
-#
-# # Bewerk relaties
-# relations <- rio_remove_relation(relations, "tabel1", "tabel2")
-# new_relation <- rio_create_relation("tabel1", "tabel2", "one-to-many", "ID1", "ID2")
-# relations <- rio_add_relation(relations, new_relation)
-#
-# # Exporteer naar CSV voor bewerking
-# rio_export_relations_csv(relations, "rio_relations.csv")
-#
-# # Later: importeer bijgewerkte relaties
-# relations <- rio_import_relations_csv("rio_relations_edited.csv")
-#
-# # Sla op als YAML
-# rio_save_relations_yaml(relations)
-#
-# # Gebruik de relaties bij het combineren van datasets
-# data1 <- rio_get_data(dataset_name = "tabel1")
-# data2 <- rio_get_data(dataset_name = "tabel2")
-# combined <- rio_combine_with_relations(relations, tabel1 = data1, tabel2 = data2)
-
-
-
 #' Get metadata of a dataset
 #'
 #' This function retrieves the metadata of a specific dataset in the RIO structure.
@@ -1734,7 +1866,7 @@ rio_list_relations_internal <- function(relations, as_dataframe = TRUE) {
 #' \code{\link{rio_load_relations}} for loading relation definitions.
 #' \code{\link{get_rio_data_dir}} for information about the user data directory.
 #'
-#' @export
+#' @keywords internal
 rio_export_default_relations <- function(overwrite = FALSE, destination = NULL,
                                          quiet = FALSE) {
   # Determine the destination path
@@ -1789,7 +1921,7 @@ rio_export_default_relations <- function(overwrite = FALSE, destination = NULL,
 #'
 #' @return A list with the RIO relations structure.
 #'
-#' @export
+#' @keywords internal
 rio_load_relations <- function(file_path = system.file("extdata", "rio_relations.yaml", package = "rioRapi")) {
   # Check if the file exists
   if (!file.exists(file_path)) {
@@ -1824,7 +1956,7 @@ rio_load_relations <- function(file_path = system.file("extdata", "rio_relations
 #'
 #' @return Invisibly the name of the file where the relations were saved.
 #'
-#' @export
+#' @keywords internal
 rio_save_relations <- function(relations, file_path = "inst/extdata/rio_relations.yaml", create_dir = TRUE) {
   # Check if the directory exists and create it if necessary
   dir_path <- dirname(file_path)

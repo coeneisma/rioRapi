@@ -2,7 +2,29 @@
 % Please edit documentation in R/metadata.R
 \name{rio_get_resource_info}
 \alias{rio_get_resource_info}
-\title{Get detailed information about a specific dataset}
+\title{#' List available tables in the RIO package
+#'
+#' This function retrieves a list of all available tables in the RIO package.
+#'
+#' @param include_description Logical indicating whether to include table descriptions.
+#'        Default is TRUE.
+#' @param pattern Optional pattern to filter table names. Default is NULL (no filtering).
+#'
+#' @return A tibble with information about each table.
+#'
+#' @examples
+#' \dontrun{
+#' # List all available tables
+#' tables <- rio_list_tables()
+#'
+#' # List only tables with "opleiding" in the name
+#' opleiding_tables <- rio_list_tables(pattern = "opleiding")
+#' }
+#'
+#' @export
+rio_list_tables <- function(include_description = TRUE, pattern = NULL) {Retrieve tables from API
+
+tables_df <- rio_list_tables()  # Internal function still uses 'datasets'}
 \usage{
 rio_get_resource_info(dataset_id = NULL, dataset_name = NULL)
 }
@@ -16,6 +38,50 @@ Either dataset_id or dataset_name must be provided.}
 A list containing detailed information about the dataset.
 }
 \description{
-This function retrieves detailed information about a specific dataset (resource) in the RIO package.
+#' List available tables in the RIO package
+#'
+#' This function retrieves a list of all available tables in the RIO package.
+#'
+#' @param include_description Logical indicating whether to include table descriptions.
+#'        Default is TRUE.
+#' @param pattern Optional pattern to filter table names. Default is NULL (no filtering).
+#'
+#' @return A tibble with information about each table.
+#'
+#' @examples
+#' \dontrun{
+#' # List all available tables
+#' tables <- rio_list_tables()
+#'
+#' # List only tables with "opleiding" in the name
+#' opleiding_tables <- rio_list_tables(pattern = "opleiding")
+#' }
+#'
+#' @export
+rio_list_tables <- function(include_description = TRUE, pattern = NULL) {Retrieve tables from API
+
+tables_df <- rio_list_tables()  # Internal function still uses 'datasets'
 }
+\section{Filter by pattern if provided}{
+if (!is.null(pattern)) {
+tables_df <- tables_df\link{grepl(pattern, tables_df$name, ignore.case = TRUE), }
+}
+}
+
+\section{Select relevant columns based on include_description}{
+if (include_description) {
+cols_to_select <- intersect(c("id", "name", "description", "last_modified"), names(tables_df))
+} else {
+cols_to_select <- intersect(c("id", "name", "last_modified"), names(tables_df))
+}
+}
+
+\section{Prepare return value}{
+result <- tables_df\link{, cols_to_select, drop = FALSE}
+}
+
+\section{Rename columns for more clarity}{
+
+}
+
 \keyword{internal}
