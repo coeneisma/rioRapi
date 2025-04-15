@@ -1,77 +1,57 @@
-#' Fetch data from a RIO dataset
+#' Fetch data from a RIO table with date filtering
 #'
-#' This function retrieves data from a specific dataset in the RIO CKAN API.
-#' You can specify either a dataset_id or a dataset_name to identify the dataset.
-#' Additional filter parameters can be provided to filter the data.
-#' By default, this function retrieves all available records (not just the first 1000).
+#' This function retrieves data from a RIO table, optionally filtering by a reference date
+#' to get only records valid at that date.
 #'
-#' @param dataset_id The ID of the dataset resource to retrieve. Default is NULL.
-#' @param dataset_name The name of the dataset resource to retrieve. Default is NULL.
-#'        Either dataset_id or dataset_name must be provided.
+#' @param table_id The ID of the table resource to retrieve. Default is NULL.
+#' @param table_name The name of the table resource to retrieve. Default is NULL.
+#'        Either table_id or table_name must be provided.
+#' @param reference_date Optional date to filter valid records. If provided, only records
+#'        valid on this date will be returned. Default is NULL (no date filtering).
 #' @param limit Maximum number of records to return. Default is NULL (all records).
-#'        Specify a number to limit the results.
 #' @param query A search query string for full-text search. Default is NULL.
-#' @param all_records Logical indicating whether to fetch all records (which may
-#'        require multiple API calls). Default is TRUE.
-#' @param batch_size Number of records to retrieve per API call. Default is 1000,
-#'        which is the maximum supported by the API.
+#' @param all_records Logical indicating whether to fetch all records. Default is TRUE.
+#' @param batch_size Number of records to retrieve per API call. Default is 1000.
 #' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#' @param ... Additional named parameters used as filters. For example, PLAATSNAAM = "Rotterdam"
-#'        will filter for records where the PLAATSNAAM field equals "Rotterdam".
+#' @param ... Additional named parameters used as filters.
 #'
 #' @return A tibble containing the retrieved data.
 #'
 #' @examples
 #' \dontrun{
-#' # Get all educational locations in Rotterdam
-#' locations <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   PLAATSNAAM = "Rotterdam"
-#' )
+#' # Get data from a table by name
+#' locaties <- rio_get_data(table_name = "onderwijslocaties")
 #'
-#' # Get only the first 500 records
-#' limited_data <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   limit = 500
-#' )
+#' # Get data from a table by ID with a reference date
+#' vestigingen <- rio_get_data(table_id = "vestigingserkenningen-id",
+#'                            reference_date = as.Date("2023-01-01"))
 #'
-#' # Get the first 1000 records without attempting to fetch all records
-#' first_batch <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   all_records = FALSE
-#' )
-#'
-#' # Fetch data without showing progress bar
-#' silent_fetch <- rio_get_data(
-#'   dataset_name = "Onderwijslocaties",
-#'   quiet = TRUE
-#' )
+#' # Get data with a filter
+#' rotterdam <- rio_get_data(table_name = "onderwijslocaties",
+#'                          PLAATSNAAM = "Rotterdam")
 #' }
 #'
-#' @importFrom cli cli_alert_info cli_progress_bar cli_progress_update cli_progress_done
 #' @export
-rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
+rio_get_data <- function(table_id = NULL, table_name = NULL,
+                         reference_date = NULL,
                          limit = NULL, query = NULL,
                          all_records = TRUE, batch_size = 1000,
                          quiet = FALSE,
                          ...) {
-  # Create connection
-  conn <- rio_api_connection()
-
-  # Check that either dataset_id or dataset_name is provided
-  if (is.null(dataset_id) && is.null(dataset_name)) {
-    stop("Either dataset_id or dataset_name must be provided")
+  # Check that either table_id or table_name is provided
+  if (is.null(table_id) && is.null(table_name)) {
+    stop("Either table_id or table_name must be provided")
   }
 
-  # If dataset_name is provided and dataset_id is not, look up the ID
-  if (is.null(dataset_id) && !is.null(dataset_name)) {
-    dataset_name <- dataset_name  # Store for later use in messages
-    dataset_id <- get_dataset_id_from_name(conn, dataset_name, "rio_nfo_po_vo_vavo_mbo_ho")
-    if (is.null(dataset_id)) {
+  # If table_name is provided and table_id is not, look up the ID
+  if (is.null(table_id) && !is.null(table_name)) {
+    table_name_for_messages <- table_name  # Store for later use in messages
+    table_id <- get_dataset_id_from_name(table_name)
+    if (is.null(table_id)) {
       return(tibble::tibble())
     }
   } else {
-    dataset_name <- dataset_id  # Use ID for messages if name isn't provided
+    table_name_for_messages <- table_id  # Use ID for messages if name isn't provided
   }
 
   # Process additional filter parameters
@@ -87,7 +67,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
   # If limit is set or all_records is FALSE, we'll just make a single API call
   if (!is.null(limit) || !all_records) {
     # Build request body
-    body <- list(dataset_id = dataset_id)
+    body <- list(dataset_id = table_id)  # Internally still uses dataset_id
 
     if (!is.null(limit)) {
       body$limit <- limit
@@ -104,12 +84,11 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     }
 
     if (!quiet) {
-      cli::cli_alert_info("Fetching data from dataset: {.val {dataset_name}}")
+      cli::cli_alert_info("Fetching data from table: {.val {table_name_for_messages}}")
     }
 
     # Execute API call
     response <- rio_api_call(
-      conn,
       "datastore_search",
       method = "POST",
       body = body
@@ -135,7 +114,7 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     # We're fetching all records, so we need to make multiple API calls
 
     # First, get the total number of records
-    resource_info <- rio_get_resource_info(conn, dataset_id = dataset_id)
+    resource_info <- rio_get_resource_info(dataset_id = table_id)  # Internal function still uses dataset_id
 
     # Check if we have the preview_rows information
     total_records <- NULL
@@ -146,15 +125,14 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     if (is.null(total_records) || is.na(total_records)) {
       # If we don't have total_records from metadata, make an initial query to get total
       if (!quiet) {
-        cli::cli_alert_info("Determining total number of records in dataset: {.val {dataset_name}}")
+        cli::cli_alert_info("Determining total number of records in table: {.val {table_name_for_messages}}")
       }
 
       initial_query <- rio_api_call(
-        conn,
         "datastore_search",
         method = "POST",
         body = list(
-          dataset_id = dataset_id,
+          dataset_id = table_id,  # Internally still uses dataset_id
           limit = 0,
           q = query,
           filters = filters
@@ -172,10 +150,11 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     }
 
     if (!quiet) {
-      cli::cli_alert_info("Fetching {total_records} records from dataset: {.val {dataset_name}}")
-      # Initialize progress bar
-      pb <- cli::cli_progress_bar(
-        format = "{cli::pb_spin} Fetching records [{cli::pb_current}/{cli::pb_total}] {cli::pb_percent} | ETA: {cli::pb_eta}",
+      cli::cli_alert_info("Fetching {total_records} records from table: {.val {table_name_for_messages}}")
+
+      # Initialize progress bar with improved format
+      cli::cli_progress_bar(
+        format = "{cli::pb_spin} Fetching records [{cli::pb_current}/{cli::pb_total}] {cli::pb_percent} | Elapsed: {cli::pb_elapsed} | ETA: {cli::pb_eta}",
         total = total_records,
         clear = FALSE
       )
@@ -184,12 +163,13 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
     # Initialize an empty list to store all batches of data
     all_data <- list()
     records_fetched <- 0
+    start_time <- Sys.time()
 
     # Loop until we've fetched all records
     while (records_fetched < total_records) {
       # Create query for current batch
       body <- list(
-        dataset_id = dataset_id,
+        dataset_id = table_id,  # Internally still uses dataset_id
         limit = batch_size,
         offset = records_fetched
       )
@@ -204,7 +184,6 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
 
       # Execute API call
       batch_response <- rio_api_call(
-        conn,
         "datastore_search",
         method = "POST",
         body = body
@@ -225,9 +204,13 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
       new_records <- nrow(batch_data)
       records_fetched <- records_fetched + new_records
 
-      # Update progress bar
+      # Update progress bar with current speed
       if (!quiet) {
-        cli::cli_progress_update(set = records_fetched)
+        cli::cli_progress_update(
+          set = records_fetched,
+          status = sprintf("Speed: %.1f records/sec",
+                           records_fetched / as.numeric(difftime(Sys.time(), start_time, units = "secs")))
+        )
       }
 
       # If we got fewer records than requested, we've reached the end
@@ -254,8 +237,21 @@ rio_get_data <- function(dataset_id = NULL, dataset_name = NULL,
       result <- dplyr::bind_rows(all_data)
     }
 
+    elapsed_time <- difftime(Sys.time(), start_time, units = "secs")
+
     if (!quiet) {
-      cli::cli_alert_success("Retrieved {nrow(result)} records")
+      speed <- nrow(result) / as.numeric(elapsed_time)
+      cli::cli_alert_success("Retrieved {nrow(result)} records in {round(elapsed_time, 1)} seconds ({round(speed, 1)} records/sec)")
+    }
+
+    # Apply reference date filtering if specified
+    if (!is.null(reference_date)) {
+      if (!quiet) {
+        cli::cli_alert_info("Filtering data for reference date: {reference_date}")
+      }
+
+      # Apply client-side filtering
+      result <- rio_filter_by_reference_date(result, reference_date)
     }
 
     return(result)
@@ -377,4 +373,114 @@ rio_get_locations <- function(city = NULL, limit = NULL,
     }
     return(locations)
   })
+}
+
+#' Filter data based on a reference date
+#'
+#' This function filters temporal data based on a reference date,
+#' keeping only records that are valid at the specified date.
+#' It prioritizes EINDDATUM/BEGINDATUM over EINDDATUM_PERIODE/BEGINDATUM_PERIODE.
+#'
+#' @param data A tibble containing temporal data with date columns.
+#' @param reference_date The date for which records should be valid (as Date object).
+#' @param start_date_col The name of the column containing start dates.
+#'        Default is NULL, which means the function will automatically search for
+#'        appropriate columns.
+#' @param end_date_col The name of the column containing end dates.
+#'        Default is NULL, which means the function will automatically search for
+#'        appropriate columns.
+#'
+#' @return A filtered tibble containing only records that are valid at the reference date,
+#'         or the original tibble if no suitable date columns are found.
+#'
+#' @keywords internal
+rio_filter_by_reference_date <- function(data, reference_date,
+                                         start_date_col = NULL,
+                                         end_date_col = NULL) {
+  # Ensure reference_date is a Date object
+  if (!inherits(reference_date, "Date")) {
+    reference_date <- as.Date(reference_date)
+  }
+
+  # Check available columns in the data
+  column_names <- names(data)
+
+  # Eerst de filtering op standaard datum velden proberen (hoogste prioriteit)
+  standard_start_cols <- c("BEGINDATUM", "STARTDATUM", "INGANGSDATUM", "INBEDRIJFDATUM")
+  standard_end_cols <- c("EINDDATUM", "OPHEFFINGSDATUM", "UITBEDRIJFDATUM")
+
+  # Dan de periode datum velden (tweede prioriteit)
+  period_start_cols <- grep("_PERIODE$", column_names, value = TRUE)
+  period_start_cols <- period_start_cols[grepl("^BEGIN|^START", period_start_cols)]
+
+  period_end_cols <- grep("_PERIODE$", column_names, value = TRUE)
+  period_end_cols <- period_end_cols[grepl("^EIND", period_end_cols)]
+
+  # Combineer alle mogelijke datumkolommen in volgorde van prioriteit
+  all_start_cols <- c(standard_start_cols, period_start_cols)
+  all_end_cols <- c(standard_end_cols, period_end_cols)
+
+  # Vind de eerste beschikbare start datum kolom
+  available_start_cols <- all_start_cols[all_start_cols %in% column_names]
+  available_end_cols <- all_end_cols[all_end_cols %in% column_names]
+
+  # Gebruik de opgegeven kolommen indien beschikbaar
+  if (!is.null(start_date_col)) {
+    if (start_date_col %in% column_names) {
+      available_start_cols <- c(start_date_col, setdiff(available_start_cols, start_date_col))
+    } else {
+      message("Specified start date column '", start_date_col, "' not found in data.")
+    }
+  }
+
+  if (!is.null(end_date_col)) {
+    if (end_date_col %in% column_names) {
+      available_end_cols <- c(end_date_col, setdiff(available_end_cols, end_date_col))
+    } else {
+      message("Specified end date column '", end_date_col, "' not found in data.")
+    }
+  }
+
+  # Als er geen datumkolommen zijn, retourneer ongewijzigde data
+  if (length(available_start_cols) == 0 && length(available_end_cols) == 0) {
+    message("No suitable date columns found in the data. Returning unfiltered data.")
+    return(data)
+  }
+
+  # Maak een kopie van de originele data
+  filtered_data <- data
+
+  # Verwerk start datum kolommen in volgorde van prioriteit
+  if (length(available_start_cols) > 0) {
+    for (start_column in available_start_cols) {
+      # Converteer naar Date object als het dat nog niet is
+      if (!inherits(filtered_data[[start_column]], "Date")) {
+        filtered_data[[start_column]] <- purrr::map_vec(filtered_data[[start_column]], rio_parse_date)
+      }
+
+      # Filter op start datum
+      filtered_data <- dplyr::filter(filtered_data,
+                                     is.na(.data[[start_column]]) | .data[[start_column]] <= reference_date)
+
+      message("Filtering using start date column: '", start_column, "'")
+    }
+  }
+
+  # Verwerk eind datum kolommen in volgorde van prioriteit
+  if (length(available_end_cols) > 0) {
+    for (end_column in available_end_cols) {
+      # Converteer naar Date object als het dat nog niet is
+      if (!inherits(filtered_data[[end_column]], "Date")) {
+        filtered_data[[end_column]] <- purrr::map_vec(filtered_data[[end_column]], rio_parse_date)
+      }
+
+      # Filter op eind datum
+      filtered_data <- dplyr::filter(filtered_data,
+                                     is.na(.data[[end_column]]) | .data[[end_column]] > reference_date)
+
+      message("Filtering using end date column: '", end_column, "'")
+    }
+  }
+
+  return(filtered_data)
 }

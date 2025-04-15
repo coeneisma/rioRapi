@@ -2,11 +2,12 @@
 % Please edit documentation in R/fetch_data.R
 \name{rio_get_data}
 \alias{rio_get_data}
-\title{Fetch data from a RIO dataset}
+\title{Fetch data from a RIO table with date filtering}
 \usage{
 rio_get_data(
-  dataset_id = NULL,
-  dataset_name = NULL,
+  table_id = NULL,
+  table_name = NULL,
+  reference_date = NULL,
   limit = NULL,
   query = NULL,
   all_records = TRUE,
@@ -16,61 +17,45 @@ rio_get_data(
 )
 }
 \arguments{
-\item{dataset_id}{The ID of the dataset resource to retrieve. Default is NULL.}
+\item{table_id}{The ID of the table resource to retrieve. Default is NULL.}
 
-\item{dataset_name}{The name of the dataset resource to retrieve. Default is NULL.
-Either dataset_id or dataset_name must be provided.}
+\item{table_name}{The name of the table resource to retrieve. Default is NULL.
+Either table_id or table_name must be provided.}
 
-\item{limit}{Maximum number of records to return. Default is NULL (all records).
-Specify a number to limit the results.}
+\item{reference_date}{Optional date to filter valid records. If provided, only records
+valid on this date will be returned. Default is NULL (no date filtering).}
+
+\item{limit}{Maximum number of records to return. Default is NULL (all records).}
 
 \item{query}{A search query string for full-text search. Default is NULL.}
 
-\item{all_records}{Logical indicating whether to fetch all records (which may
-require multiple API calls). Default is TRUE.}
+\item{all_records}{Logical indicating whether to fetch all records. Default is TRUE.}
 
-\item{batch_size}{Number of records to retrieve per API call. Default is 1000,
-which is the maximum supported by the API.}
+\item{batch_size}{Number of records to retrieve per API call. Default is 1000.}
 
 \item{quiet}{Logical indicating whether to suppress progress messages. Default is FALSE.}
 
-\item{...}{Additional named parameters used as filters. For example, PLAATSNAAM = "Rotterdam"
-will filter for records where the PLAATSNAAM field equals "Rotterdam".}
+\item{...}{Additional named parameters used as filters.}
 }
 \value{
 A tibble containing the retrieved data.
 }
 \description{
-This function retrieves data from a specific dataset in the RIO CKAN API.
-You can specify either a dataset_id or a dataset_name to identify the dataset.
-Additional filter parameters can be provided to filter the data.
-By default, this function retrieves all available records (not just the first 1000).
+This function retrieves data from a RIO table, optionally filtering by a reference date
+to get only records valid at that date.
 }
 \examples{
 \dontrun{
-# Get all educational locations in Rotterdam
-locations <- rio_get_data(
-  dataset_name = "Onderwijslocaties",
-  PLAATSNAAM = "Rotterdam"
-)
+# Get data from a table by name
+locaties <- rio_get_data(table_name = "onderwijslocaties")
 
-# Get only the first 500 records
-limited_data <- rio_get_data(
-  dataset_name = "Onderwijslocaties",
-  limit = 500
-)
+# Get data from a table by ID with a reference date
+vestigingen <- rio_get_data(table_id = "vestigingserkenningen-id",
+                           reference_date = as.Date("2023-01-01"))
 
-# Get the first 1000 records without attempting to fetch all records
-first_batch <- rio_get_data(
-  dataset_name = "Onderwijslocaties",
-  all_records = FALSE
-)
-
-# Fetch data without showing progress bar
-silent_fetch <- rio_get_data(
-  dataset_name = "Onderwijslocaties",
-  quiet = TRUE
-)
+# Get data with a filter
+rotterdam <- rio_get_data(table_name = "onderwijslocaties",
+                         PLAATSNAAM = "Rotterdam")
 }
 
 }

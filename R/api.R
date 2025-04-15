@@ -39,11 +39,9 @@ rio_api_connection <- function(base_url = "https://onderwijsdata.duo.nl/api/3/ac
 #' }
 #'
 #' @keywords internal
-rio_api_call <- function(req = NULL, endpoint, method = "GET", body = NULL, simplify = TRUE) {
-  # Create a new connection if none is provided
-  if (is.null(req)) {
-    req <- rio_api_connection()
-  }
+rio_api_call <- function(endpoint, method = "GET", body = NULL, simplify = TRUE) {
+  # Create a new connection
+  req <- rio_api_connection()
 
   # Append endpoint to request path
   req <- req |>
@@ -51,6 +49,12 @@ rio_api_call <- function(req = NULL, endpoint, method = "GET", body = NULL, simp
 
   # Set method and add body if provided
   if (!is.null(body)) {
+    # Voor datastore_search endpoint, zet dataset_id om naar resource_id
+    if (endpoint == "datastore_search" && !is.null(body$dataset_id)) {
+      body$resource_id <- body$dataset_id
+      body$dataset_id <- NULL
+    }
+
     req <- req |>
       httr2::req_method(method) |>
       httr2::req_body_json(body)
@@ -111,9 +115,9 @@ rio_api_check <- function() {
 #' @return Resource ID or NULL if not found
 #'
 #' @keywords internal
-get_dataset_id_from_name <- function(conn = NULL, dataset_name, package_id = "rio_nfo_po_vo_vavo_mbo_ho") {
+get_dataset_id_from_name <- function(dataset_name) {
   # Get list of datasets
-  datasets <- rio_list_datasets(conn, package_id)
+  datasets <- rio_list_tables()
 
   # Find dataset with matching name
   match_idx <- which(datasets$name == dataset_name)
