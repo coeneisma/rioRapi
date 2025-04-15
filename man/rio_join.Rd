@@ -13,18 +13,8 @@ rio_join(
   max_path_length = 10,
   as_sf = FALSE,
   remove_invalid = FALSE,
-  quiet = FALSE
-)
-
-rio_join(
-  ...,
-  by_names = TRUE,
-  reference_date = Sys.Date(),
-  nested = FALSE,
-  find_paths = TRUE,
-  max_path_length = 10,
-  as_sf = FALSE,
-  remove_invalid = FALSE,
+  filters = NULL,
+  query = NULL,
   quiet = FALSE
 )
 }
@@ -43,29 +33,28 @@ Set to NULL to disable date filtering.}
 that are not directly connected. Default is TRUE.}
 
 \item{max_path_length}{Maximum length of connection paths to consider when find_paths is TRUE.
-Default is NULL (no limit).}
+Default is 10.}
 
-\item{as_sf}{Logical indicating whether to convert the result to an sf object when 'onderwijslocaties'
-is included. Default is FALSE.}
+\item{as_sf}{Logical indicating whether to convert the result to an sf object when GPS coordinates
+are available. Default is FALSE.}
 
 \item{remove_invalid}{Logical indicating whether to remove rows with invalid or missing coordinates
 when converting to sf. Default is FALSE.}
 
+\item{filters}{Optional named list of filters to apply when loading data. Filters will be applied
+to all tables where the filter column exists.}
+
+\item{query}{Optional search query string for full-text search. Default is NULL.}
+
 \item{quiet}{Logical indicating whether to suppress progress messages. Default is FALSE.}
 }
 \value{
-A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
-
-A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
+A joined tibble, or an sf object if as_sf = TRUE and GPS coordinates are available.
 }
 \description{
 This function joins multiple RIO tables based on the relations defined in the package.
 It automatically detects relations between tables and chooses the optimal join path.
-When 'onderwijslocaties' is included, the result can be converted to an sf object.
-
-This function joins multiple RIO tables based on the relations defined in the package.
-It automatically detects relations between tables and chooses the optimal join path.
-When 'onderwijslocaties' is included, the result can be converted to an sf object.
+When GPS coordinates are available, the result can be converted to an sf object.
 }
 \examples{
 \dontrun{
@@ -79,20 +68,9 @@ geo_data <- rio_join("vestigingserkenningen", "onderwijslocaties", as_sf = TRUE)
 joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
                         reference_date = as.Date("2023-01-01"))
 
-# Return a nested tibble
-nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)
-}
-
-\dontrun{
-# Join tables by name (default method)
-joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties")
-
-# Return as sf object for mapping
-geo_data <- rio_join("vestigingserkenningen", "onderwijslocaties", as_sf = TRUE)
-
-# Join with a specific reference date
+# Join with filters on the data
 joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
-                        reference_date = as.Date("2023-01-01"))
+                        filters = list(PLAATSNAAM = "Utrecht"))
 
 # Return a nested tibble
 nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)

@@ -917,7 +917,7 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #'
 #' This function joins multiple RIO tables based on the relations defined in the package.
 #' It automatically detects relations between tables and chooses the optimal join path.
-#' When 'onderwijslocaties' is included, the result can be converted to an sf object.
+#' When GPS coordinates are available, the result can be converted to an sf object.
 #'
 #' @param ... Character vector of table names to load or named tibbles to join.
 #' @param by_names Logical indicating whether the arguments are table names
@@ -928,14 +928,17 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #' @param find_paths Logical indicating whether to find indirect connection paths between datasets
 #'        that are not directly connected. Default is TRUE.
 #' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
-#'        Default is NULL (no limit).
-#' @param as_sf Logical indicating whether to convert the result to an sf object when 'onderwijslocaties'
-#'        is included. Default is FALSE.
+#'        Default is 10.
+#' @param as_sf Logical indicating whether to convert the result to an sf object when GPS coordinates
+#'        are available. Default is FALSE.
 #' @param remove_invalid Logical indicating whether to remove rows with invalid or missing coordinates
 #'        when converting to sf. Default is FALSE.
+#' @param filters Optional named list of filters to apply when loading data. Filters will be applied
+#'        to all tables where the filter column exists.
+#' @param query Optional search query string for full-text search. Default is NULL.
 #' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
 #'
-#' @return A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
+#' @return A joined tibble, or an sf object if as_sf = TRUE and GPS coordinates are available.
 #'
 #' @examples
 #' \dontrun{
@@ -949,6 +952,10 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
 #'                         reference_date = as.Date("2023-01-01"))
 #'
+#' # Join with filters on the data
+#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
+#'                         filters = list(PLAATSNAAM = "Utrecht"))
+#'
 #' # Return a nested tibble
 #' nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)
 #' }
@@ -956,7 +963,8 @@ nest_result <- function(joined_data, dataset_names, path_info) {
 #' @export
 rio_join <- function(..., by_names = TRUE, reference_date = Sys.Date(),
                      nested = FALSE, find_paths = TRUE, max_path_length = 10,
-                     as_sf = FALSE, remove_invalid = FALSE, quiet = FALSE) {
+                     as_sf = FALSE, remove_invalid = FALSE,
+                     filters = NULL, query = NULL, quiet = FALSE) {
   # Load relations from YAML file
   relations <- rio_load_relations()
 
@@ -992,224 +1000,57 @@ rio_join <- function(..., by_names = TRUE, reference_date = Sys.Date(),
       if (!quiet) {
         cli::cli_alert_info("Loading table: {name}")
       }
-      tibble_result <- tryCatch({
-        # Apply reference_date when loading data (if provided)
-        if (!is.null(reference_date)) {
-          rio_get_data(table_name = name, quiet = quiet)
-        } else {
-          rio_get_data(table_name = name, quiet = quiet)
-        }
-      }, error = function(e) {
-        loading_errors <- c(loading_errors, paste("Error loading table '", name, "': ", e$message, sep = ""))
-        if (!quiet) {
-          cli::cli_alert_danger("Error loading table '{name}': {e$message}")
-        }
-        # Return empty tibble
-        tibble::tibble()
-      })
 
-      if (nrow(tibble_result) == 0) {
-        if (!quiet) {
-          cli::cli_alert_warning("No data found for table '{name}'")
-        }
+      # Bereid parameters voor rio_get_data voor
+      get_data_params <- list(
+        table_name = name,
+        quiet = quiet
+      )
+
+      # Voeg reference_date toe indien beschikbaar
+      if (!is.null(reference_date)) {
+        get_data_params$reference_date <- reference_date
       }
 
-      tibbles[[name]] <- tibble_result
-    }
-
-    # Check if we have enough tables with data
-    tables_with_data <- names(tibbles)[sapply(tibbles, nrow) > 0]
-    if (length(tables_with_data) < 2) {
-      if (length(loading_errors) > 0) {
-        stop(paste("Failed to load enough tables for joining:",
-                   paste(loading_errors, collapse = "\n"), sep = "\n"))
-      } else {
-        stop("Not enough tables with data for joining (minimum 2 required)")
+      # Voeg query toe indien beschikbaar
+      if (!is.null(query)) {
+        get_data_params$query <- query
       }
-    }
-  } else {
-    # Input is already loaded tibbles
-    tibbles <- input_args
-    table_names <- names(tibbles)
-  }
 
-  # Validate inputs
-  if (length(tibbles) < 2) {
-    stop("At least two tables must be provided for joining")
-  }
-
-  if (!by_names && "" %in% table_names) {
-    stop("When providing tibbles directly, all must be named. Example: rio_join(table1 = df1, table2 = df2)")
-  }
-
-  # Find the optimal path to connect the tables, forcing start from the first table
-  path_info <- find_optimal_path(table_names, relations$relations,
-                                 verbose = !quiet, start_with_first = TRUE)
-
-  # Execute the joins based on the optimal path
-  result <- execute_dataset_joins(tibbles, path_info, relations$relations,
-                                  verbose = !quiet, reference_date = reference_date)
-
-  # Format as nested tibble if requested
-  if (nested) {
-    tryCatch({
-      result <- nest_result(result, table_names, path_info)
-    }, error = function(e) {
-      warning("Failed to create nested result: ", e$message,
-              "\nReturning flat joined table instead.")
-    })
-  }
-
-  # Convert to sf object if requested and 'onderwijslocaties' is included
-  if (as_sf && "onderwijslocaties" %in% table_names) {
-    if (!requireNamespace("sf", quietly = TRUE)) {
-      warning("Cannot convert to sf: sf package is not installed")
-    } else {
-      # Check if required columns exist
-      if (!all(c("GPS_LONGITUDE", "GPS_LATITUDE") %in% names(result))) {
-        if (!quiet) {
-          warning("Cannot convert to sf: GPS_LONGITUDE and/or GPS_LATITUDE columns not found")
-        }
-      } else {
-        # If remove_invalid is TRUE, remove rows with missing or invalid coordinates
-        if (remove_invalid) {
-          valid_rows <- !is.na(result$GPS_LONGITUDE) &
-            !is.na(result$GPS_LATITUDE) &
-            is.numeric(result$GPS_LONGITUDE) &
-            is.numeric(result$GPS_LATITUDE)
-
-          if (sum(!valid_rows) > 0 && !quiet) {
-            cli::cli_alert_info("Removing {sum(!valid_rows)} rows with invalid or missing coordinates")
-          }
-
-          result <- result[valid_rows, ]
-
-          # If all rows were invalid, return original result
-          if (nrow(result) == 0) {
-            if (!quiet) {
-              cli::cli_alert_warning("No valid coordinates found, returning non-sf result")
-            }
-            return(result)
-          }
-        }
-
-        # Convert to sf object
-        tryCatch({
-          result_sf <- sf::st_as_sf(
-            result,
-            coords = c("GPS_LONGITUDE", "GPS_LATITUDE"),
-            crs = 4326
-          )
-
-          if (!quiet) {
-            cli::cli_alert_success("Converted to sf object with {nrow(result_sf)} points")
-          }
-
-          result <- result_sf
+      # Voeg filters toe indien beschikbaar
+      if (!is.null(filters) && length(filters) > 0) {
+        # Haal velden op voor deze tabel
+        fields_info <- tryCatch({
+          rio_list_fields(name)
         }, error = function(e) {
           if (!quiet) {
-            cli::cli_alert_danger("Error converting to sf: {e$message}")
+            message("Could not get fields for table '", name, "': ", e$message)
           }
+          NULL
         })
-      }
-    }
-  }
 
-  if (!quiet) {
-    cli::cli_alert_success("All tables successfully joined. Final result has {nrow(result)} rows and {ncol(result)} columns")
-  }
+        # Als we veldinfo hebben, pas alleen de relevante filters toe
+        if (!is.null(fields_info) && nrow(fields_info) > 0) {
+          available_fields <- fields_info$field_name
 
-  return(result)
-}
+          # Filter op velden die bestaan in deze tabel
+          applicable_filters <- filters[names(filters) %in% available_fields]
 
+          if (length(applicable_filters) > 0) {
+            # Voeg toe aan get_data_params
+            get_data_params <- c(get_data_params, applicable_filters)
 
-
-#' Join RIO tables based on predefined relations
-#'
-#' This function joins multiple RIO tables based on the relations defined in the package.
-#' It automatically detects relations between tables and chooses the optimal join path.
-#' When 'onderwijslocaties' is included, the result can be converted to an sf object.
-#'
-#' @param ... Character vector of table names to load or named tibbles to join.
-#' @param by_names Logical indicating whether the arguments are table names
-#'        rather than actual datasets. Default is TRUE.
-#' @param reference_date Optional date to filter valid records. Default is the current date (Sys.Date()).
-#'        Set to NULL to disable date filtering.
-#' @param nested Logical indicating whether to return a nested tibble. Default is FALSE.
-#' @param find_paths Logical indicating whether to find indirect connection paths between datasets
-#'        that are not directly connected. Default is TRUE.
-#' @param max_path_length Maximum length of connection paths to consider when find_paths is TRUE.
-#'        Default is NULL (no limit).
-#' @param as_sf Logical indicating whether to convert the result to an sf object when 'onderwijslocaties'
-#'        is included. Default is FALSE.
-#' @param remove_invalid Logical indicating whether to remove rows with invalid or missing coordinates
-#'        when converting to sf. Default is FALSE.
-#' @param quiet Logical indicating whether to suppress progress messages. Default is FALSE.
-#'
-#' @return A joined tibble, or an sf object if as_sf = TRUE and 'onderwijslocaties' is included.
-#'
-#' @examples
-#' \dontrun{
-#' # Join tables by name (default method)
-#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties")
-#'
-#' # Return as sf object for mapping
-#' geo_data <- rio_join("vestigingserkenningen", "onderwijslocaties", as_sf = TRUE)
-#'
-#' # Join with a specific reference date
-#' joined_data <- rio_join("vestigingserkenningen", "onderwijslocaties",
-#'                         reference_date = as.Date("2023-01-01"))
-#'
-#' # Return a nested tibble
-#' nested_data <- rio_join("vestigingserkenningen", "onderwijslocaties", nested = TRUE)
-#' }
-#'
-#' @export
-rio_join <- function(..., by_names = TRUE, reference_date = Sys.Date(),
-                     nested = FALSE, find_paths = TRUE, max_path_length = 10,
-                     as_sf = FALSE, remove_invalid = FALSE, quiet = FALSE) {
-  # Load relations from YAML file
-  relations <- rio_load_relations()
-
-  # Process inputs to handle both named tibbles and table names
-  input_args <- list(...)
-
-  if (by_names) {
-    # Input is table names, load the data
-    table_names <- unlist(input_args)
-
-    # Use the common helper function to find paths between tables
-    path_result <- rio_find_table_paths(
-      tables = table_names,
-      relations = relations$relations,
-      min_confidence = "medium",
-      find_paths = find_paths,
-      max_path_length = max_path_length,
-      quiet = quiet
-    )
-
-    # Update with all tables that need to be included
-    table_names <- path_result$tables
-
-    if (!quiet) {
-      cli::cli_alert_info("Loading {length(table_names)} tables")
-    }
-
-    # Load each table
-    tibbles <- list()
-    loading_errors <- character(0)
-
-    for (name in table_names) {
-      if (!quiet) {
-        cli::cli_alert_info("Loading table: {name}")
-      }
-      tibble_result <- tryCatch({
-        # Apply reference_date when loading data (if provided)
-        if (!is.null(reference_date)) {
-          rio_get_data(table_name = name, quiet = quiet)
-        } else {
-          rio_get_data(table_name = name, quiet = quiet)
+            if (!quiet) {
+              applied_filter_names <- paste(names(applicable_filters), collapse = ", ")
+              cli::cli_alert_info("Applying filters for columns: {applied_filter_names}")
+            }
+          }
         }
+      }
+
+      # Haal de data op met alle parameters
+      tibble_result <- tryCatch({
+        do.call(rio_get_data, get_data_params)
       }, error = function(e) {
         loading_errors <- c(loading_errors, paste("Error loading table '", name, "': ", e$message, sep = ""))
         if (!quiet) {
@@ -1332,6 +1173,129 @@ rio_join <- function(..., by_names = TRUE, reference_date = Sys.Date(),
 
   if (!quiet) {
     cli::cli_alert_success("All tables successfully joined. Final result has {nrow(result)} rows and {ncol(result)} columns")
+  }
+
+  return(result)
+}
+
+
+
+#' Join tables using predefined relations from YAML configuration
+#'
+#' This function joins multiple tables based on predefined relations stored in the
+#' RIO relations YAML file. It finds the optimal path between tables and performs
+#' the joins accordingly.
+#'
+#' @param ... Named tibbles to join or character vector of table names to load.
+#' @param by_names Logical indicating whether the arguments are table names
+#'        rather than actual table. Default is FALSE.
+#' @param relations Optional list of relations. If NULL, relations are loaded from the default file.
+#' @param reference_date Optional date to filter valid records. Default is NULL (no filtering).
+#' @param nested Logical indicating whether to return the result as a nested tibble.
+#'        Default is FALSE.
+#' @param visualize Logical indicating whether to return a visualization of the connection path
+#'        instead of the joined data. Default is FALSE.
+#' @param verbose Logical indicating whether to display detailed connection information.
+#'        Default is TRUE.
+#'
+#' @return A joined tibble with data from all input tibbles, or a visualization object if visualize = TRUE.
+#'
+#' @examples
+#' \dontrun{
+#' # Provide actual tibbles
+#' vestigingen <- rio_get_data(dataset_name = "vestigingserkenningen")
+#' locaties <- rio_get_data(dataset_name = "onderwijslocaties")
+#' joined_data <- rio_join_tables(vestigingen = vestigingen, locaties = locaties)
+#'
+#' # Or provide dataset names (will load data automatically)
+#' joined_data <- rio_join_tables("vestigingserkenningen",
+#'                                  "onderwijslocaties",
+#'                                  by_names = TRUE)
+#'
+#' # Create a nested result
+#' nested_data <- rio_join_tables("vestigingserkenningen",
+#'                                  "onderwijslocaties",
+#'                                  by_names = TRUE,
+#'                                  nested = TRUE)
+#'
+#' # Visualize the connection path
+#' viz <- rio_join_tables("vestigingserkenningen",
+#'                          "onderwijslocaties",
+#'                          by_names = TRUE,
+#'                          visualize = TRUE)
+#' }
+#'
+#' @keywords internal
+rio_join_tables <- function(..., by_names = FALSE, relations = NULL,
+                              reference_date = NULL, nested = FALSE,
+                              visualize = FALSE, verbose = TRUE) {
+  # Process inputs
+  input_args <- list(...)
+
+  # Handle two different input types
+  if (by_names) {
+    # Input is dataset names, load the data
+    dataset_names <- unlist(input_args)
+    if (verbose) {
+      cli::cli_alert_info("Loading {length(dataset_names)} datasets")
+    }
+    tibbles <- list()
+    for (name in dataset_names) {
+      if (verbose) {
+        cli::cli_alert_info("Loading dataset: {name}")
+      }
+      tibbles[[name]] <- rio_get_data(dataset_name = name)
+    }
+  } else {
+    # Input is already loaded tibbles
+    tibbles <- input_args
+    dataset_names <- names(tibbles)
+  }
+
+  # Check if tibbles were provided
+  if (length(tibbles) < 2) {
+    stop("At least two datasets must be provided for joining")
+  }
+
+  # Load relations if not provided
+  if (is.null(relations)) {
+    rel_data <- rio_load_relations()
+    relations <- rel_data$relations
+    if (length(relations) == 0) {
+      stop("No relations defined in the YAML configuration. Please define relations first.")
+    }
+  } else if (is.list(relations) && !is.null(relations$relations)) {
+    # If complete relations structure is provided, extract just the relations part
+    relations <- relations$relations
+  }
+
+  # Check for unnamed parameters when not using by_names
+  if (!by_names && "" %in% dataset_names) {
+    stop("When providing tibbles directly, all must be named. Example: rio_join_datasets(dataset1 = df1, dataset2 = df2)")
+  }
+
+  if (verbose) {
+    cli::cli_alert_info("Joining {length(dataset_names)} datasets: {paste(dataset_names, collapse = ', ')}")
+  }
+
+  # Find the optimal path to connect the datasets
+  path_info <- find_optimal_path(dataset_names, relations, verbose)
+
+  # If visualization is requested, return that instead
+  if (visualize) {
+    return(visualize_path(path_info, relations, dataset_names))
+  }
+
+  # Execute the joins based on the optimal path
+  result <- execute_dataset_joins(tibbles, path_info, relations, verbose, reference_date)
+
+  # Format as nested tibble if requested
+  if (nested) {
+    result <- nest_result(result, dataset_names, path_info)
+  }
+
+  if (verbose) {
+    cli::cli_alert_success("All datasets successfully joined. Final result has {nrow(result)} rows and {ncol(result)} columns")
   }
 
   return(result)
