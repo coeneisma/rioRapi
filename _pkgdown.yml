@@ -1,4 +1,28 @@
 url: https://coeneisma.github.io/rioRapi/
 template:
   bootstrap: 5
+reference:
+- title: "Explore the meta data"
+  desc: >
+    Functions for exploring the RIO-data and its relations.
+  contents:
+  - rio_list_tables
+  - rio_list_fields
+  - rio_list_relations
+- title: "Get the data"
+  desc: >
+    Functions for retreiving and joining the data
+  contents:
+  - rio_get_data
+  - rio_get_locations
+  - rio_join
+- title: "Visualize the data"
+  desc: >
+    Functions for visualizing the RIO-data and its relations.
+  contents:
+  - rio_visualize_relations
+  - rio_visualize_timeline
+  - rio_map_locations
+
+
 

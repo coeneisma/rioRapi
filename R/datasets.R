@@ -38,6 +38,7 @@ rio_list_tables <- function() {
   }
 }
 
+
 #' Get metadata for the RIO dataset
 #'
 #' This function retrieves detailed metadata for the Dutch Register of Institutions
@@ -69,6 +70,8 @@ rio_get_metadata <- function() {
     return(list())
   }
 }
+
+
 
 
 #' Get information about fields in a dataset
@@ -121,8 +124,6 @@ rio_get_fields <- function(dataset_id = NULL, dataset_name = NULL) {
     return(tibble::tibble())
   }
 }
-
-
 
 #' Get detailed information about a specific dataset
 #'
@@ -217,7 +218,6 @@ rio_list_fields <- function(table_name, table_id = NULL, include_info = TRUE, pa
 
   return(result)
 }
-
 
 #' Detect available datasets and their fields
 #'
@@ -336,6 +336,8 @@ rio_detect_datasets <- function(force = FALSE, days_threshold = 28,
   invisible(rio_datasets)
 }
 
+
+
 #' Load the detected RIO dataset information
 #'
 #' This function loads the saved RIO dataset information. If no information exists or it is
@@ -386,6 +388,8 @@ rio_load_datasets <- function(auto_detect = TRUE, days_threshold = 28, quiet = F
   datasets <- readRDS(dataset_file)
   return(datasets)
 }
+
+
 
 #' Add metadata to a dataset
 #'
@@ -441,3 +445,30 @@ rio_add_dataset_metadata <- function(datasets, dataset_name,
   return(datasets)
 }
 
+
+#' Get metadata of a dataset
+#'
+#' This function retrieves the metadata of a specific dataset in the RIO structure.
+#'
+#' @param datasets The RIO datasets structure as returned by rio_load_datasets().
+#' @param dataset_name Name of the dataset.
+#'
+#' @return A list with the metadata of the dataset.
+#'
+#' @keywords internal
+rio_get_dataset_metadata <- function(datasets, dataset_name) {
+  # Check if the dataset exists
+  if (!dataset_name %in% names(datasets$datasets)) {
+    stop("Dataset '", dataset_name, "' does not exist in the structure")
+  }
+
+  # Collect all metadata (excluding the fields)
+  metadata <- datasets$datasets[[dataset_name]]
+
+  # We make a copy without the fields, which are often very large
+  if (!is.null(metadata$fields)) {
+    metadata$fields <- NULL
+  }
+
+  return(metadata)
+}
