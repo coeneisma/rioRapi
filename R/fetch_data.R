@@ -297,7 +297,7 @@ rio_get_locations <- function(city = NULL, limit = NULL,
                               quiet = FALSE, ...) {
   # Build parameters for rio_get_data
   params <- list(
-    dataset_name = "onderwijslocaties",
+    table_name = "onderwijslocaties",
     limit = limit,
     quiet = quiet,
     ...
